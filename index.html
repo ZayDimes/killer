@@ -110,7 +110,7 @@ function classify(cs) {
 const topCard = p => p.c[p.c.length - 1];
 
 function canPlay(p, o, locked) {
-  if (!o) return true;                                       // leading: anything
+    if (!o) return p.k !== 'bomb';
   if (p.k === 'killer') return o.k !== 'killer' || rk(topCard(p)) > rk(topCard(o));
   if (p.k === 'bomb') {
     if (o.k === 'bomb') return p.len === o.len && beats(topCard(p), topCard(o));
@@ -254,6 +254,7 @@ function playSel() {
     const p = classify(cards);
     if (!p) return 'Not a valid combination';
     if (g.firstLead && !cards.some(c => val(c) === 0)) return 'First play must include the 3♠';
+        if (!g.table && p.k === 'bomb') return 'Bombs can only be played on a 2';
     if (!canPlay(p, g.table, g.locked)) return 'That doesn\'t beat the table';
     const old = g.table;
     const nice = !!old && p.c.every(c => rk(c) === NINE) && old.c.every(c => rk(c) === SIX) && p.k === old.k;
