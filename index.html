@@ -39,6 +39,7 @@ button:disabled{opacity:.35}
 .box{background:#14633b;border-radius:16px;padding:20px;max-width:420px;width:100%;text-align:center}
 .small{font-size:13px;opacity:.75}
 .code{font-size:40px;font-weight:900;letter-spacing:6px;text-align:center}
+.grp{display:flex;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
 </style>
 </head>
 <body>
@@ -123,7 +124,6 @@ function canPlay(p, o, locked) {
   return beats(topCard(p), topCard(o));
 }
 
-
 // ---------- Helpers ----------
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -132,6 +132,15 @@ let me = localStorage.getItem('killer_me');
 if (!me) { me = Math.random().toString(36).slice(2, 10); localStorage.setItem('killer_me', me); }
 let roomCode = localStorage.getItem('killer_room');
 let room = null, sel = new Set(), lastNice = null, flashTimer;
+let groups = [], groupKey = '';   // your own card groupings (only on your device)
+function saveGroups() { try { localStorage.setItem('killer_groups_' + groupKey, JSON.stringify(groups)); } catch (e) {} }
+function groupSel() {
+  if (sel.size < 2) return flash('Select 2+ cards to group');
+  groups = groups.map(gr => gr.filter(c => !sel.has(c))).filter(gr => gr.length);
+  groups.push([...sel].sort(byVal)); sel.clear(); saveGroups(); render();
+}
+function ungroupAll() { groups = []; saveGroups(); render(); }
+function selectGroup(i) { sel = new Set(groups[i]); render(); }
 const roomRef = () => db.ref('rooms/' + roomCode);
 const gameRef = () => db.ref('rooms/' + roomCode + '/game');
 
@@ -371,6 +380,11 @@ function renderGame(g) {
   } else if (lastNice === null) lastNice = g.nice ? g.nice.t : 0;
 
   const hand = g.hands[me];
+  const key = roomCode + ':' + (g.gameNo || 1);
+  if (key !== groupKey) { groupKey = key; try { groups = JSON.parse(localStorage.getItem('killer_groups_' + key)) || []; } catch (e) { groups = []; } }
+  groups = groups.map(gr => gr.filter(c => hand.includes(c))).filter(gr => gr.length);
+  const grouped = new Set(groups.flat());
+  const loose = hand.filter(c => !grouped.has(c));
   [...sel].forEach(c => { if (!hand.includes(c)) sel.delete(c); });
   const myTurn = g.turn === me && g.phase === 'play';
 
@@ -417,7 +431,12 @@ function renderGame(g) {
     <div id="msg" class="msg"></div>
     <div class="hand">
       <div class="small" style="text-align:center;margin-bottom:8px">${myTurn ? '<b style="color:#ffd23f">Your turn</b>' : 'Your hand'} · ${hand.length} cards</div>
-      <div class="cards" id="hand">${hand.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
+      <div class="cards" id="hand">${groups.map((gr, i) => `<div class="grp" data-g="${i}">${gr.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>`).join('')}${loose.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
+      <div class="btns">
+        <button class="sec" onclick="groupSel()" ${sel.size >= 2 ? '' : 'disabled'}>Group selected</button>
+        <button class="sec" onclick="ungroupAll()" ${groups.length ? '' : 'disabled'}>Ungroup all</button>
+      </div>
+      <p class="small" style="text-align:center">Tap a group's dashed border to select the whole group</p>
     </div>
     <div class="btns">
       <button class="sec" onclick="pass()" ${myTurn && g.table ? '' : 'disabled'}>Pass</button>
@@ -431,7 +450,8 @@ function renderGame(g) {
     ${over}`;
 
   $('#hand').onclick = e => {
-    const el = e.target.closest('.card'); if (!el) return;
+    const el = e.target.closest('.card');
+    if (!el) { const gEl = e.target.closest('.grp'); if (gEl) selectGroup(+gEl.dataset.g); return; }
     const c = +el.dataset.c;
     sel.has(c) ? sel.delete(c) : sel.add(c);
     render();
