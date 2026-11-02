@@ -106,13 +106,13 @@ function classify(cs) {
   }
   return null;
 }
-const top = p => p.c[p.c.length - 1];
+const topCard = p => p.c[p.c.length - 1];
 
 function canPlay(p, o, locked) {
   if (!o) return true;                                       // leading: anything
-  if (p.k === 'killer') return o.k !== 'killer' || rk(top(p)) > rk(top(o));
+  if (p.k === 'killer') return o.k !== 'killer' || rk(topCard(p)) > rk(topCard(o));
   if (p.k === 'bomb') {
-    if (o.k === 'bomb') return p.len === o.len && beats(top(p), top(o));
+    if (o.k === 'bomb') return p.len === o.len && beats(topCard(p), topCard(o));
     return o.c.some(x => rk(x) === TWO);                     // bombs only go on 2s
   }
   if (p.k !== o.k) return false;
@@ -120,8 +120,9 @@ function canPlay(p, o, locked) {
     if (p.len !== o.len) return false;
     if (locked && !p.suited) return false;                   // suited round stays suited
   }
-  return beats(top(p), top(o));
+  return beats(topCard(p), topCard(o));
 }
+
 
 // ---------- Helpers ----------
 const $ = s => document.querySelector(s);
