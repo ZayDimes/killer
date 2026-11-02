@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Killer">
+<meta name="theme-color" content="#0b4d2c">
+<title>Killer</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#0b4d2c;color:#fff;min-height:100vh}
+.screen{max-width:700px;margin:0 auto;padding:16px}
+h1{text-align:center;font-size:44px;margin:24px 0 8px;letter-spacing:2px}
+input{width:100%;padding:14px;font-size:18px;border-radius:10px;border:0;margin:6px 0}
+button{padding:14px 18px;font-size:17px;font-weight:700;border-radius:10px;border:0;background:#ffd23f;color:#222;margin:4px 0}
+button.sec{background:#ffffff22;color:#fff}
+button:disabled{opacity:.35}
+.full{width:100%}
+.row{display:flex;gap:8px;align-items:center}
+.players{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.pl{background:#ffffff18;border-radius:10px;padding:6px 10px;text-align:center;min-width:76px;font-size:14px}
+.pl.turn{background:#ffd23f;color:#222}
+.pl .n{font-weight:700}
+.pl.out{opacity:.5}
+.table{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:14px 0;background:#00000025;border-radius:14px;padding:10px}
+.cards{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.card{width:42px;height:62px;background:#fff;color:#111;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:17px;line-height:1.1;border:2px solid #999;transition:transform .12s}
+.card.red{color:#d11}
+.card.sel{transform:translateY(-12px);border-color:#1e6bff;box-shadow:0 0 0 2px #1e6bff}
+.hand{margin-top:16px;padding-top:14px}
+.msg{min-height:22px;text-align:center;color:#ffb3b3;font-weight:700}
+.log{text-align:center;font-size:14px;opacity:.85;min-height:18px}
+.tag{color:#ffd23f;font-size:13px;font-weight:700}
+.btns{display:flex;gap:10px;margin-top:10px}
+.btns button{flex:1}
+#nice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000}
+.overlay{background:#000a;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:#14633b;border-radius:16px;padding:20px;max-width:420px;width:100%;text-align:center}
+.small{font-size:13px;opacity:.75}
+.code{font-size:40px;font-weight:900;letter-spacing:6px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app" class="screen"></div>
+<div id="nice">NICE</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+// ====== PASTE YOUR FIREBASE VALUES HERE (keep the quotes) ======
+// Import the functions you need from the SDKs you need
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDl9ROY4PQu2DJ_fTyhLPNIB_AkORkEMm0",
+  authDomain: "killer-1234.firebaseapp.com",
+  databaseURL: "https://killer-1234-default-rtdb.firebaseio.com",
+  projectId: "killer-1234",
+  storageBucket: "killer-1234.firebasestorage.app",
+  messagingSenderId: "404596038759",
+  appId: "1:404596038759:web:45786cb989d5d4c1de08c2"
+};
+
+// Initialize Firebase
+// ===============================================================
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ---------- Rules engine ----------
+const R = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+const S = ['♠','♣','♦','♥'];               // spades < clubs < diamonds < hearts
+const rk = c => Math.floor((c % 52) / 4);  // 0 = 3 ... 12 = 2
+const su = c => c % 4;
+const val = c => c % 52;
+const byVal = (a, b) => val(a) - val(b) || a - b;
+const TEN = 7, NINE = 6, SIX = 3, TWO = 12;
+const label = c => R[rk(c)] + S[su(c)];
+
+// Equal rank below 10 is fine; from 10 up an equal rank needs a higher suit.
+function beats(n, o) {
+  if (rk(n) !== rk(o)) return rk(n) > rk(o);
+  return rk(n) >= TEN ? su(n) > su(o) : true;
+}
+
+function classify(cs) {
+  const c = [...cs].sort(byVal), r = c.map(rk), n = c.length;
+  const same = r.every(x => x === r[0]);
+  const consec = a => a.every((x, i) => i === 0 || x === a[i - 1] + 1);
+  if (n === 1) return { k: 'single', c };
+  if (same && n === 2) return { k: 'pair', c };
+  if (same && n === 3) return { k: 'triple', c };
+  if (same && n === 4) return { k: 'killer', c };
+  if (n >= 3 && consec(r)) return { k: 'run', len: n, suited: c.every(x => su(x) === su(c[0])), c };
+  if (n >= 6 && n % 2 === 0) {
+    const pr = []; let ok = true;
+    for (let i = 0; i < n; i += 2) { if (r[i] !== r[i + 1]) ok = false; pr.push(r[i]); }
+    if (ok && consec(pr)) return { k: 'bomb', len: n / 2, c };
+  }
+  return null;
+}
+const top = p => p.c[p.c.length - 1];
+
+function canPlay(p, o, locked) {
+  if (!o) return true;                                       // leading: anything
+  if (p.k === 'killer') return o.k !== 'killer' || rk(top(p)) > rk(top(o));
+  if (p.k === 'bomb') {
+    if (o.k === 'bomb') return p.len === o.len && beats(top(p), top(o));
+    return o.c.some(x => rk(x) === TWO);                     // bombs only go on 2s
+  }
+  if (p.k !== o.k) return false;
+  if (p.k === 'run') {
+    if (p.len !== o.len) return false;
+    if (locked && !p.suited) return false;                   // suited round stays suited
+  }
+  return beats(top(p), top(o));
+}
+
+// ---------- Helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const arr = x => x ? (Array.isArray(x) ? x : Object.values(x)) : [];
+let me = localStorage.getItem('killer_me');
+if (!me) { me = Math.random().toString(36).slice(2, 10); localStorage.setItem('killer_me', me); }
+let roomCode = localStorage.getItem('killer_room');
+let room = null, sel = new Set(), lastNice = null, flashTimer;
+const roomRef = () => db.ref('rooms/' + roomCode);
+const gameRef = () => db.ref('rooms/' + roomCode + '/game');
+
+function flash(t) {
+  const m = $('#msg'); if (!m) return;
+  m.textContent = t; clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { if ($('#msg')) $('#msg').textContent = ''; }, 2500);
+}
+
+function norm(g) {
+  g.order = arr(g.order); g.finished = arr(g.finished); g.claimers = arr(g.claimers);
+  g.hands = g.hands || {}; g.order.forEach(id => g.hands[id] = arr(g.hands[id]));
+  g.streaks = g.streaks || {};
+  if (g.table) g.table.c = arr(g.table.c); else g.table = null;
+  return g;
+}
+const active = g => g.order.filter(id => !g.finished.includes(id));
+function nextActive(g, id) {
+  let i = g.order.indexOf(id);
+  for (let k = 0; k < g.order.length; k++) {
+    i = (i + 1) % g.order.length;
+    if (!g.finished.includes(g.order[i])) return g.order[i];
+  }
+  return id;
+}
+
+// Run a move atomically so two phones can't clash.
+function act(fn) {
+  let err = null;
+  gameRef().transaction(g => {
+    if (!g) return g;
+    norm(g); err = fn(g);
+    if (err) return;            // abort
+    return g;
+  }, (e) => { if (err) flash(err); else if (e) flash(e.message); });
+}
+
+// ---------- Dealing ----------
+function dealInto(g, firstGame) {
+  const ids = g.order, n = ids.length, decks = n >= 6 ? 2 : 1;
+  const d = [...Array(52 * decks).keys()];
+  for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+  g.hands = {}; ids.forEach(id => g.hands[id] = []);
+  d.forEach((c, i) => g.hands[ids[i % n]].push(c));      // dealt in order; extras land where they land
+  ids.forEach(id => g.hands[id].sort(byVal));
+  g.table = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.nice = null;
+  g.phase = 'play'; g.firstLead = firstGame; g.claimers = [];
+  if (firstGame) {
+    const holders = ids.filter(id => g.hands[id].some(c => val(c) === 0));
+    if (holders.length > 1) { g.phase = 'claim'; g.claimers = holders; g.turn = holders[0]; g.log = 'Race! Tap "Claim 3♠" first to lead.'; }
+    else { g.turn = holders[0]; g.log = g.names[g.turn] + ' has the 3♠ and leads.'; }
+  }
+}
+
+// ---------- Actions ----------
+function createRoom() {
+  const name = $('#name').value.trim(); if (!name) return flash('Enter your name');
+  localStorage.setItem('killer_name', name);
+  const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  roomCode = [0,0,0,0].map(() => L[Math.floor(Math.random() * L.length)]).join('');
+  localStorage.setItem('killer_room', roomCode);
+  roomRef().set({ host: me, created: Date.now(), players: { [me]: { name, joined: Date.now() } } }).then(listen);
+}
+
+function joinRoom() {
+  const name = $('#name').value.trim(); if (!name) return flash('Enter your name');
+  const code = $('#code').value.trim().toUpperCase(); if (code.length !== 4) return flash('Enter the 4-letter code');
+  localStorage.setItem('killer_name', name);
+  db.ref('rooms/' + code).get().then(s => {
+    const r = s.val();
+    if (!r) return flash('Room not found');
+    const inGame = r.game && arr(r.game.order).includes(me);
+    if (r.game && !inGame) return flash('Game already in progress');
+    if (!inGame && Object.keys(r.players || {}).length >= 8) return flash('Room is full (8 max)');
+    roomCode = code; localStorage.setItem('killer_room', code);
+    const p = (r.players && r.players[me]) ? {} : { joined: Date.now() };
+    db.ref('rooms/' + code + '/players/' + me).update({ name, ...p }).then(listen);
+  });
+}
+
+function leaveRoom() {
+  if (room && !room.game && room.players && room.players[me]) db.ref('rooms/' + roomCode + '/players/' + me).remove();
+  if (roomCode) roomRef().off();
+  roomCode = null; room = null; localStorage.removeItem('killer_room'); renderHome();
+}
+
+function startGame() {
+  const ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
+  if (ps.length < 2) return flash('Need at least 2 players');
+  const g = { order: ps.map(p => p[0]), names: Object.fromEntries(ps.map(p => [p[0], p[1].name])),
+              streaks: room.streaks || {}, gameNo: 1 };
+  dealInto(g, true);
+  gameRef().set(g);
+}
+
+function claim() {
+  act(g => {
+    if (g.phase !== 'claim') return 'Already claimed';
+    if (!g.claimers.includes(me)) return 'You don\'t have a 3♠';
+    g.phase = 'play'; g.turn = me; g.log = g.names[me] + ' claimed the 3♠ first and leads!';
+  });
+}
+
+function playSel() {
+  const cards = [...sel];
+  act(g => {
+    if (g.phase !== 'play') return 'Not now';
+    if (g.turn !== me) return 'Not your turn';
+    const hand = g.hands[me];
+    if (!cards.length || !cards.every(c => hand.includes(c))) return 'Pick cards from your hand';
+    const p = classify(cards);
+    if (!p) return 'Not a valid combination';
+    if (g.firstLead && !cards.some(c => val(c) === 0)) return 'First play must include the 3♠';
+    if (!canPlay(p, g.table, g.locked)) return 'That doesn\'t beat the table';
+    const old = g.table;
+    const nice = !!old && p.c.every(c => rk(c) === NINE) && old.c.every(c => rk(c) === SIX) && p.k === old.k;
+    if (p.k === 'run' && p.suited) g.locked = true;
+    g.hands[me] = hand.filter(c => !cards.includes(c));
+    g.table = { ...p, by: me };
+    g.last = me; g.passes = 0; g.firstLead = false;
+    g.log = g.names[me] + ' played ' + p.c.map(label).join(' ');
+    if (nice) g.nice = { t: Date.now(), big: p.c.length > 1 };
+    if (!g.hands[me].length) {
+      g.finished.push(me);
+      g.log += g.finished.length === 1 ? ' and WINS! 🏆' : ' and is out.';
+      const left = active(g);
+      if (left.length === 1) {
+        const winner = g.finished[0], loser = left[0];
+        g.finished.push(loser); g.phase = 'over'; g.loser = loser;
+        g.order.forEach(id => {
+          const s = g.streaks[id] || { w: 0, l: 0 };
+          s.w = id === winner ? (s.w || 0) + 1 : 0;
+          s.l = id === loser ? (s.l || 0) + 1 : 0;
+          g.streaks[id] = s;
+        });
+        return;
+      }
+    }
+    g.turn = nextActive(g, me);
+  });
+  sel.clear();
+}
+
+function pass() {
+  act(g => {
+    if (g.phase !== 'play') return 'Not now';
+    if (g.turn !== me) return 'Not your turn';
+    if (!g.table) return 'You\'re leading — play something';
+    g.passes = (g.passes || 0) + 1;
+    const others = active(g).filter(id => id !== g.last).length;
+    if (g.passes >= others) {
+      g.table = null; g.locked = false; g.passes = 0;
+      g.turn = active(g).includes(g.last) ? g.last : nextActive(g, g.last);   // left is law
+      g.log = 'Everyone passed. ' + g.names[g.turn] + ' leads anything.';
+    } else {
+      g.log = g.names[me] + ' passed.';
+      g.turn = nextActive(g, me);
+    }
+  });
+  sel.clear();
+}
+
+function nextGame() {
+  act(g => {
+    if (g.phase !== 'over') return 'Game not over';
+    const winner = g.finished[0];
+    dealInto(g, false);
+    g.turn = winner; g.gameNo = (g.gameNo || 1) + 1; g.loser = null;
+    g.log = g.names[winner] + ' won last game and leads anything.';
+  });
+}
+
+function endGame() {
+  if (!confirmEnd) { confirmEnd = true; render(); return; }
+  confirmEnd = false;
+  const streaks = room.game ? room.game.streaks || {} : {};
+  roomRef().update({ game: null, streaks });
+}
+let confirmEnd = false;
+
+// ---------- Rendering ----------
+function cardHTML(c, extra = '') {
+  return `<div class="card ${su(c) >= 2 ? 'red' : ''} ${extra}" data-c="${c}"><span>${R[rk(c)]}</span><span>${S[su(c)]}</span></div>`;
+}
+
+function renderHome() {
+  $('#app').innerHTML = `
+    <h1>KILLER</h1>
+    <p class="small" style="text-align:center">Play with friends anywhere</p>
+    <input id="name" placeholder="Your name" maxlength="14" value="${esc(localStorage.getItem('killer_name') || '')}">
+    <button class="full" onclick="createRoom()">Create room</button>
+    <div class="row" style="margin-top:14px">
+      <input id="code" placeholder="CODE" maxlength="4" style="text-transform:uppercase;flex:1">
+      <button onclick="joinRoom()">Join</button>
+    </div>
+    <div id="msg" class="msg"></div>`;
+}
+
+function listen() {
+  roomRef().off();
+  roomRef().on('value', s => {
+    room = s.val();
+    if (!room) { flash('Room closed'); leaveRoom(); return; }
+    render();
+  });
+}
+
+function render() {
+  if (!room) return renderHome();
+  if (!room.game) return renderLobby();
+  renderGame(norm(JSON.parse(JSON.stringify(room.game))));
+}
+
+function renderLobby() {
+  const ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
+  const host = room.host === me;
+  $('#app').innerHTML = `
+    <h1>KILLER</h1>
+    <p style="text-align:center">Room code</p>
+    <div class="code">${esc(roomCode)}</div>
+    <p class="small" style="text-align:center">Seats go left in this order</p>
+    <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}</div>`).join('')}</div>
+    <div style="margin-top:20px">
+      ${host ? `<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
+             : `<p style="text-align:center">Waiting for the host to start…</p>`}
+      <button class="full sec" onclick="leaveRoom()">Leave</button>
+    </div>
+    <div id="msg" class="msg"></div>`;
+}
+
+function renderGame(g) {
+  if (!g.order.includes(me)) { $('#app').innerHTML = `<p>Game in progress.</p><button class="sec" onclick="leaveRoom()">Leave</button>`; return; }
+  // Nice overlay
+  if (g.nice && g.nice.t !== lastNice) {
+    if (lastNice !== null) showNice(g.nice.big);
+    lastNice = g.nice.t;
+  } else if (lastNice === null) lastNice = g.nice ? g.nice.t : 0;
+
+  const hand = g.hands[me];
+  [...sel].forEach(c => { if (!hand.includes(c)) sel.delete(c); });
+  const myTurn = g.turn === me && g.phase === 'play';
+
+  const playersBar = g.order.map(id => {
+    const s = g.streaks[id] || {}, place = g.finished.indexOf(id);
+    let badge = '';
+    if ((s.w || 0) >= 3) badge += ` 🔥${s.w}W`;
+    if ((s.l || 0) >= 3) badge += ` 💀${s.l}L`;
+    const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${g.hands[id].length} cards`;
+    return `<div class="pl ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''}">
+      <div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}</div>${badge ? `<div class="small">${badge}</div>` : ''}</div>`;
+  }).join('');
+
+  let center;
+  if (g.phase === 'claim') {
+    center = g.claimers.includes(me)
+      ? `<button onclick="claim()" style="font-size:24px">Claim 3♠</button>`
+      : `<div>Waiting for someone to claim the 3♠…</div>`;
+  } else if (g.table) {
+    center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
+      <div class="cards">${g.table.c.map(c => cardHTML(c)).join('')}</div>
+      <div class="small" style="margin-top:6px">${esc(g.names[g.table.by])}</div>`;
+  } else {
+    center = `<div>${g.phase === 'over' ? 'Game over' : esc(g.names[g.turn]) + ' leads — play anything'}</div>`;
+  }
+
+  let over = '';
+  if (g.phase === 'over') {
+    const w = g.finished[0], l = g.loser;
+    const sw = g.streaks[w] || {}, sl = g.streaks[l] || {};
+    over = `<div class="overlay"><div class="box">
+      <h2>🏆 ${esc(g.names[w])} wins</h2>
+      <h3>😵 ${esc(g.names[l])} loses</h3>
+      ${(sw.w || 0) >= 3 ? `<p>🔥 ${esc(g.names[w])} has won ${sw.w} in a row!</p>` : ''}
+      ${(sl.l || 0) >= 3 ? `<p>💀 ${esc(g.names[l])} has lost ${sl.l} in a row. Punishment time!</p>` : ''}
+      ${room.host === me ? `<button class="full" onclick="nextGame()">Next game</button>` : '<p>Waiting for host…</p>'}
+    </div></div>`;
+  }
+
+  $('#app').innerHTML = `
+    <div class="players">${playersBar}</div>
+    <div class="table">${center}</div>
+    <div class="log">${esc(g.log || '')}</div>
+    <div id="msg" class="msg"></div>
+    <div class="hand">
+      <div class="small" style="text-align:center;margin-bottom:8px">${myTurn ? '<b style="color:#ffd23f">Your turn</b>' : 'Your hand'} · ${hand.length} cards</div>
+      <div class="cards" id="hand">${hand.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
+    </div>
+    <div class="btns">
+      <button class="sec" onclick="pass()" ${myTurn && g.table ? '' : 'disabled'}>Pass</button>
+      <button onclick="playSel()" ${myTurn && sel.size ? '' : 'disabled'}>Play</button>
+    </div>
+    <div class="row" style="margin-top:24px;justify-content:center">
+      ${room.host === me ? `<button class="sec" onclick="endGame()">${confirmEnd ? 'Tap again to end game' : 'End game'}</button>` : ''}
+      <button class="sec" onclick="sel.clear();render()">Clear selection</button>
+    </div>
+    <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1}</p>
+    ${over}`;
+
+  $('#hand').onclick = e => {
+    const el = e.target.closest('.card'); if (!el) return;
+    const c = +el.dataset.c;
+    sel.has(c) ? sel.delete(c) : sel.add(c);
+    render();
+  };
+}
+
+function showNice(big) {
+  const n = $('#nice');
+  n.style.fontSize = big ? '120px' : '72px';
+  n.style.display = 'flex';
+  n.animate([{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1.1)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 400 });
+  if (navigator.vibrate) navigator.vibrate(big ? [100, 50, 100] : 80);
+  setTimeout(() => n.style.display = 'none', big ? 2200 : 1500);
+}
+
+// ---------- Boot (auto-rejoin after a disconnect) ----------
+if (roomCode) {
+  db.ref('rooms/' + roomCode).get().then(s => {
+    const r = s.val();
+    if (r && ((r.players && r.players[me]) || (r.game && arr(r.game.order).includes(me)))) listen();
+    else { localStorage.removeItem('killer_room'); roomCode = null; renderHome(); }
+  }).catch(() => renderHome());
+} else renderHome();
+</script>
+</body>
+</html>
