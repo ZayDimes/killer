@@ -39,6 +39,9 @@ button:disabled{opacity:.35}
 .box{background:#14633b;border-radius:16px;padding:20px;max-width:420px;width:100%;text-align:center}
 .small{font-size:13px;opacity:.75}
 .code{font-size:40px;font-weight:900;letter-spacing:6px;text-align:center}
+.card.mini{width:30px;height:44px;font-size:12px;border-width:1px}
+.prevplay{display:flex;flex-direction:column;align-items:center;opacity:.6;margin-right:14px}
+.tablerow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap}
 .grp{display:flex;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
 </style>
 </head>
@@ -110,7 +113,7 @@ function classify(cs) {
 const topCard = p => p.c[p.c.length - 1];
 
 function canPlay(p, o, locked) {
-    if (!o) return p.k !== 'bomb';
+  if (!o) return true;                                       // leading (bomb lead checked in playSel)
   if (p.k === 'killer') return o.k !== 'killer' || rk(topCard(p)) > rk(topCard(o));
   if (p.k === 'bomb') {
     if (o.k === 'bomb') return p.len === o.len && beats(topCard(p), topCard(o));
@@ -186,7 +189,7 @@ function dealInto(g, firstGame) {
   g.hands = {}; ids.forEach(id => g.hands[id] = []);
   d.forEach((c, i) => g.hands[ids[i % n]].push(c));      // dealt in order; extras land where they land
   ids.forEach(id => g.hands[id].sort(byVal));
-  g.table = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.nice = null;
+  g.table = null; g.under = null; g.prev = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.nice = null;
   g.phase = 'play'; g.firstLead = firstGame; g.claimers = [];
   if (firstGame) {
     const holders = ids.filter(id => g.hands[id].some(c => val(c) === 0));
@@ -254,14 +257,15 @@ function playSel() {
     const p = classify(cards);
     if (!p) return 'Not a valid combination';
     if (g.firstLead && !cards.some(c => val(c) === 0)) return 'First play must include the 3♠';
-        if (!g.table && p.k === 'bomb') return 'Bombs can only be played on a 2';
+    if (!g.table && p.k === 'bomb' && !(g.prev && arr(g.prev.c).some(x => rk(x) === TWO))) return 'Bombs can only be played on a 2';
     if (!canPlay(p, g.table, g.locked)) return 'That doesn\'t beat the table';
     const old = g.table;
     const nice = !!old && p.c.every(c => rk(c) === NINE) && old.c.every(c => rk(c) === SIX) && p.k === old.k;
     if (p.k === 'run' && p.suited) g.locked = true;
     g.hands[me] = hand.filter(c => !cards.includes(c));
+    g.under = old ? { c: old.c, by: old.by } : null;   // the play this one beat
     g.table = { ...p, by: me };
-    g.last = me; g.passes = 0; g.firstLead = false;
+    g.last = me; g.passes = 0; g.firstLead = false; g.prev = null;
     g.log = g.names[me] + ' played ' + p.c.map(label).join(' ');
     if (nice) g.nice = { t: Date.now(), big: p.c.length > 1 };
     if (!g.hands[me].length) {
@@ -293,7 +297,7 @@ function pass() {
     g.passes = (g.passes || 0) + 1;
     const others = active(g).filter(id => id !== g.last).length;
     if (g.passes >= others) {
-      g.table = null; g.locked = false; g.passes = 0;
+      g.prev = g.table; g.table = null; g.under = null; g.locked = false; g.passes = 0;
       g.turn = active(g).includes(g.last) ? g.last : nextActive(g, g.last);   // left is law
       g.log = 'Everyone passed. ' + g.names[g.turn] + ' leads anything.';
     } else {
@@ -323,6 +327,10 @@ function endGame() {
 let confirmEnd = false;
 
 // ---------- Rendering ----------
+function miniPlay(pl, title) {
+  return `<div class="prevplay"><div class="small">${title}</div><div class="cards">${arr(pl.c).map(c => cardHTML(c, 'mini')).join('')}</div><div class="small">${esc(roomNames[pl.by] || '')}</div></div>`;
+}
+let roomNames = {};
 function cardHTML(c, extra = '') {
   return `<div class="card ${su(c) >= 2 ? 'red' : ''} ${extra}" data-c="${c}"><span>${R[rk(c)]}</span><span>${S[su(c)]}</span></div>`;
 }
@@ -380,6 +388,7 @@ function renderGame(g) {
     lastNice = g.nice.t;
   } else if (lastNice === null) lastNice = g.nice ? g.nice.t : 0;
 
+  roomNames = g.names || {};
   const hand = g.hands[me];
   const key = roomCode + ':' + (g.gameNo || 1);
   if (key !== groupKey) { groupKey = key; try { groups = JSON.parse(localStorage.getItem('killer_groups_' + key)) || []; } catch (e) { groups = []; } }
@@ -406,10 +415,12 @@ function renderGame(g) {
       : `<div>Waiting for someone to claim the 3♠…</div>`;
   } else if (g.table) {
     center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
-      <div class="cards">${g.table.c.map(c => cardHTML(c)).join('')}</div>
-      <div class="small" style="margin-top:6px">${esc(g.names[g.table.by])}</div>`;
+      <div class="tablerow">${g.under ? miniPlay(g.under, 'Before') : ''}
+        <div><div class="cards">${g.table.c.map(c => cardHTML(c)).join('')}</div>
+        <div class="small" style="margin-top:6px;text-align:center">${esc(g.names[g.table.by])}</div></div></div>`;
   } else {
-    center = `<div>${g.phase === 'over' ? 'Game over' : esc(g.names[g.turn]) + ' leads — play anything'}</div>`;
+    center = `${g.prev && g.phase !== 'over' ? miniPlay(g.prev, 'Last round ended on') : ''}
+      <div>${g.phase === 'over' ? 'Game over' : esc(g.names[g.turn]) + ' leads — play anything'}</div>`;
   }
 
   let over = '';
