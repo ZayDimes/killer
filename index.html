@@ -69,8 +69,10 @@ const firebaseConfig = {
 // Initialize Firebase
 // ===============================================================
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+let db;
+try { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
+catch (e) { document.body.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:16px;font-size:18px">Init error: '+e.message+'</p>'); }
+
 
 // ---------- Rules engine ----------
 const R = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
