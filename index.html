@@ -43,7 +43,7 @@ body.shake{animation:shake .7s}
 @keyframes shake{0%,100%{transform:translate(0,0)}10%{transform:translate(-14px,6px)}20%{transform:translate(12px,-8px)}30%{transform:translate(-10px,10px)}40%{transform:translate(14px,-4px)}50%{transform:translate(-8px,8px)}60%{transform:translate(10px,-10px)}70%{transform:translate(-6px,4px)}80%{transform:translate(6px,-6px)}90%{transform:translate(-3px,3px)}}
 .up{text-align:center;font-size:30px;font-weight:900;margin:10px 0 0;letter-spacing:1px}
 .up.mine{color:#ffd23f;font-size:38px}
-.chair{position:fixed;right:10px;bottom:10px;background:#000000aa;border-radius:12px;padding:8px 12px;font-size:14px;z-index:30;max-width:60vw}
+.chair{background:#00000055;border-radius:12px;padding:8px 12px;font-size:14px;margin:10px auto 0;text-align:center;max-width:420px}
 .overlay{background:#000a;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px}
 .box{background:#14633b;border-radius:16px;padding:20px;max-width:420px;width:100%;text-align:center}
 .small{font-size:13px;opacity:.75}
@@ -51,11 +51,28 @@ body.shake{animation:shake .7s}
 .card.mini{width:30px;height:44px;font-size:12px;border-width:1px}
 .prevplay{display:flex;flex-direction:column;align-items:center;opacity:.6;margin-right:14px}
 .tablerow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap}
+#chat{display:none;padding-top:0}
+#chatbox{background:#00000030;border-radius:14px;padding:10px}
+#chatlog{max-height:180px;overflow-y:auto;font-size:15px;line-height:1.35;margin-bottom:8px}
+#chatlog .m{margin:3px 0;word-wrap:break-word}
+#chatlog .m b{color:#ffd23f}
+#chatlog .m.mine b{color:#8fd3ff}
+#chatform{display:flex;gap:8px}
+#chatform input{margin:0;padding:10px;font-size:16px}
+#chatform button{margin:0;padding:10px 16px}
 .grp{display:flex;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
 </style>
 </head>
 <body>
 <div id="app" class="screen"></div>
+<div id="chat" class="screen"><div id="chatbox">
+  <div class="small" style="margin-bottom:6px">💬 Chat</div>
+  <div id="chatlog"></div>
+  <form id="chatform" onsubmit="sendChat(); return false;">
+    <input id="chatin" maxlength="200" placeholder="Say something…" autocomplete="off">
+    <button>Send</button>
+  </form>
+</div></div>
 <div id="fx"></div>
 <div id="flash"></div>
 <script>window.onerror=function(m,s,l){document.body.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:16px;font-size:18px">Error: '+m+' (line '+l+')</p>')}</script>
@@ -265,6 +282,7 @@ function joinRoom() {
 function leaveRoom() {
   if (room && !room.game && room.players && room.players[me]) db.ref('rooms/' + roomCode + '/players/' + me).remove();
   if (roomCode) roomRef().off();
+  stopChat();
   roomCode = null; room = null; localStorage.removeItem('killer_room'); renderHome();
 }
 
@@ -339,9 +357,9 @@ function pass(auto) {
     if (g.passes >= others) {
       g.prev = g.table; g.table = null; g.under = null; g.locked = false; g.passes = 0;
       g.turn = active(g).includes(g.last) ? g.last : nextActive(g, g.last);   // left is law
-      g.log = (auto ? g.names[me] + ' auto-passed. ' : 'Everyone passed. ') + g.names[g.turn] + ' leads anything.';
+      g.log = 'Everyone passed. ' + g.names[g.turn] + ' leads anything.';
     } else {
-      g.log = g.names[me] + (auto ? ' auto-passed (no playable cards).' : ' passed.');
+      g.log = g.names[me] + ' passed.';
       g.turn = nextActive(g, me);
     }
   });
@@ -391,8 +409,35 @@ function renderHome() {
     <div id="msg" class="msg"></div>`;
 }
 
+// ---------- Chat ----------
+let chatRef = null;
+function startChat() {
+  stopChat();
+  $('#chat').style.display = 'block'; $('#chatlog').innerHTML = '';
+  chatRef = db.ref('rooms/' + roomCode + '/chat').limitToLast(50);
+  chatRef.on('child_added', s => {
+    const m = s.val(); if (!m) return;
+    const log = $('#chatlog');
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    log.insertAdjacentHTML('beforeend', `<div class="m ${m.by === me ? 'mine' : ''}"><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`);
+    if (atBottom || m.by === me) log.scrollTop = log.scrollHeight;
+  });
+}
+function stopChat() {
+  if (chatRef) chatRef.off(); chatRef = null;
+  $('#chat').style.display = 'none';
+}
+function sendChat() {
+  const inp = $('#chatin'), text = inp.value.trim();
+  if (!text || !roomCode) return;
+  const name = (room && room.players && room.players[me] && room.players[me].name) || localStorage.getItem('killer_name') || 'Someone';
+  db.ref('rooms/' + roomCode + '/chat').push({ by: me, name, text: text.slice(0, 200), t: Date.now() });
+  inp.value = '';
+}
+
 function listen() {
   roomRef().off();
+  startChat();
   roomRef().on('value', s => {
     room = s.val();
     if (!room) { flash('Room closed'); leaveRoom(); return; }
@@ -523,7 +568,7 @@ function renderGame(g) {
   // Auto-pass only when there is truly no legal play
   if (myTurn && g.table && !hasPlay(hand, g.table, g.locked)) {
     const k = g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
-    if (autoKey !== k) { autoKey = k; setTimeout(() => pass(true), 1200); }
+    if (autoKey !== k) { autoKey = k; setTimeout(() => { const n = room && room.game; if (n && n.turn === me && n.log === g.log) pass(true); }, 5000); }
   }
 
   if (spectator) return;
