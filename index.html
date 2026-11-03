@@ -17,7 +17,7 @@ button{padding:14px 18px;font-size:17px;font-weight:700;border-radius:10px;borde
 button.sec{background:#ffffff22;color:#fff}
 button:disabled{opacity:.35}
 .full{width:100%}
-.row{display:flex;gap:8px;align-items:center}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .players{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .pl{background:#ffffff18;border-radius:10px;padding:6px 10px;text-align:center;min-width:76px;font-size:14px}
 .pl.turn{background:#ffd23f;color:#222}
@@ -189,6 +189,8 @@ let me = localStorage.getItem('killer_me');
 if (!me) { me = Math.random().toString(36).slice(2, 10); localStorage.setItem('killer_me', me); }
 let roomCode = localStorage.getItem('killer_room');
 let room = null, sel = new Set(), lastFx = null, lastTurnKey = null, autoKey = '', flashTimer;
+let autoPassOn = localStorage.getItem('killer_autopass') !== 'off';   // your own setting
+function toggleAutoPass() { autoPassOn = !autoPassOn; try { localStorage.setItem('killer_autopass', autoPassOn ? 'on' : 'off'); } catch (e) {} autoKey = ''; render(); }
 let groups = [], groupKey = '';   // your own card groupings (only on your device)
 function saveGroups() { try { localStorage.setItem('killer_groups_' + groupKey, JSON.stringify(groups)); } catch (e) {} }
 function groupSel() {
@@ -568,14 +570,15 @@ function renderGame(g) {
     <div class="row" style="margin-top:24px;justify-content:center">
       ${room.host === me ? `<button class="sec" onclick="endGame()">${confirmEnd ? 'Tap again to end game' : 'End game'}</button>` : ''}
       <button class="sec" onclick="sel.clear();render()">Clear selection</button>
+      ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
     </div>
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1}</p>
     ${chair}${over}`;
 
   // Auto-pass only when there is truly no legal play
-  if (myTurn && g.table && !hasPlay(hand, g.table, g.locked)) {
+  if (autoPassOn && myTurn && g.table && !hasPlay(hand, g.table, g.locked)) {
     const k = g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
-    if (autoKey !== k) { autoKey = k; setTimeout(() => { const n = room && room.game; if (n && n.turn === me && n.log === g.log) pass(true); }, 5000); }
+    if (autoKey !== k) { autoKey = k; setTimeout(() => { const n = room && room.game; if (autoPassOn && n && n.turn === me && n.log === g.log) pass(true); }, 5000); }
   }
 
   if (spectator) return;
