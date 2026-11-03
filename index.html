@@ -245,6 +245,7 @@ function dealInto(g, firstGame) {
   ids.forEach(id => g.hands[id].sort(byVal));
   g.table = null; g.under = null; g.prev = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.fx = null;
   g.phase = 'play'; g.firstLead = firstGame; g.claimers = [];
+  g.dealId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);   // unique per deal
   if (firstGame) {
     const holders = ids.filter(id => g.hands[id].some(c => val(c) === 0));
     if (holders.length > 1) { g.phase = 'claim'; g.claimers = holders; g.turn = holders[0]; g.log = 'Race! Tap "Claim 3♠" first to lead.'; }
@@ -484,8 +485,14 @@ function renderGame(g) {
 
   roomNames = g.names || {};
   const hand = spectator ? [] : g.hands[me];
-  const key = roomCode + ':' + (g.gameNo || 1);
-  if (key !== groupKey) { groupKey = key; try { groups = JSON.parse(localStorage.getItem('killer_groups_' + key)) || []; } catch (e) { groups = []; } }
+  const key = roomCode + ':' + (g.dealId || g.gameNo || 1);
+  if (key !== groupKey) {
+    groupKey = key;
+    try {
+      Object.keys(localStorage).forEach(k => { if (k.startsWith('killer_groups_') && k !== 'killer_groups_' + key) localStorage.removeItem(k); });
+      groups = JSON.parse(localStorage.getItem('killer_groups_' + key)) || [];
+    } catch (e) { groups = []; }
+  }
   groups = groups.map(gr => gr.filter(c => hand.includes(c))).filter(gr => gr.length);
   const grouped = new Set(groups.flat());
   const loose = hand.filter(c => !grouped.has(c));
