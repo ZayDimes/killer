@@ -34,7 +34,16 @@ button:disabled{opacity:.35}
 .tag{color:#ffd23f;font-size:13px;font-weight:700}
 .btns{display:flex;gap:10px;margin-top:10px}
 .btns button{flex:1}
-#nice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000}
+#fx{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000;text-align:center;z-index:50;padding:20px}
+#fx .sub{font-size:28px;color:#fff;margin-top:8px}
+#flash{position:fixed;inset:0;pointer-events:none;background:#ffd23f;opacity:0;z-index:40}
+#flash.on{animation:flash 1.2s ease-out}
+@keyframes flash{0%{opacity:0}15%{opacity:.55}40%{opacity:.1}60%{opacity:.45}100%{opacity:0}}
+body.shake{animation:shake .7s}
+@keyframes shake{0%,100%{transform:translate(0,0)}10%{transform:translate(-14px,6px)}20%{transform:translate(12px,-8px)}30%{transform:translate(-10px,10px)}40%{transform:translate(14px,-4px)}50%{transform:translate(-8px,8px)}60%{transform:translate(10px,-10px)}70%{transform:translate(-6px,4px)}80%{transform:translate(6px,-6px)}90%{transform:translate(-3px,3px)}}
+.up{text-align:center;font-size:30px;font-weight:900;margin:10px 0 0;letter-spacing:1px}
+.up.mine{color:#ffd23f;font-size:38px}
+.chair{position:fixed;right:10px;bottom:10px;background:#000000aa;border-radius:12px;padding:8px 12px;font-size:14px;z-index:30;max-width:60vw}
 .overlay{background:#000a;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px}
 .box{background:#14633b;border-radius:16px;padding:20px;max-width:420px;width:100%;text-align:center}
 .small{font-size:13px;opacity:.75}
@@ -47,7 +56,8 @@ button:disabled{opacity:.35}
 </head>
 <body>
 <div id="app" class="screen"></div>
-<div id="nice">NICE</div>
+<div id="fx"></div>
+<div id="flash"></div>
 <script>window.onerror=function(m,s,l){document.body.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:16px;font-size:18px">Error: '+m+' (line '+l+')</p>')}</script>
 
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -127,6 +137,33 @@ function canPlay(p, o, locked) {
   return beats(topCard(p), topCard(o));
 }
 
+// True if this hand has ANY legal play on the table (used for auto-pass).
+function hasPlay(hand, t, locked) {
+  const by = {};
+  hand.forEach(c => (by[rk(c)] = by[rk(c)] || []).push(c));
+  Object.values(by).forEach(a => a.sort(byVal));
+  const tries = [];
+  for (const r in by) {
+    const a = by[r];
+    for (let n = 1; n <= Math.min(4, a.length); n++) tries.push(a.slice(-n));
+  }
+  const has = (r, n) => by[r] && by[r].length >= n;
+  for (let L = 3; L <= 13; L++) {
+    for (let st = 0; st + L <= 13; st++) {
+      const rs = Array.from({ length: L }, (_, i) => st + i);
+      if (rs.every(r => has(r, 1))) {
+        tries.push(rs.map(r => by[r][by[r].length - 1]));
+        for (let s = 0; s < 4; s++) {
+          const pick = rs.map(r => by[r].filter(c => su(c) === s).pop());
+          if (pick.every(c => c !== undefined)) tries.push(pick);
+        }
+      }
+      if (rs.every(r => has(r, 2))) tries.push(rs.flatMap(r => by[r].slice(-2)));
+    }
+  }
+  return tries.some(cs => { const p = classify(cs); return p && canPlay(p, t, locked); });
+}
+
 // ---------- Helpers ----------
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -134,7 +171,7 @@ const arr = x => x ? (Array.isArray(x) ? x : Object.values(x)) : [];
 let me = localStorage.getItem('killer_me');
 if (!me) { me = Math.random().toString(36).slice(2, 10); localStorage.setItem('killer_me', me); }
 let roomCode = localStorage.getItem('killer_room');
-let room = null, sel = new Set(), lastNice = null, flashTimer;
+let room = null, sel = new Set(), lastFx = null, lastTurnKey = null, autoKey = '', flashTimer;
 let groups = [], groupKey = '';   // your own card groupings (only on your device)
 function saveGroups() { try { localStorage.setItem('killer_groups_' + groupKey, JSON.stringify(groups)); } catch (e) {} }
 function groupSel() {
@@ -156,7 +193,7 @@ function flash(t) {
 function norm(g) {
   g.order = arr(g.order); g.finished = arr(g.finished); g.claimers = arr(g.claimers);
   g.hands = g.hands || {}; g.order.forEach(id => g.hands[id] = arr(g.hands[id]));
-  g.streaks = g.streaks || {};
+  g.streaks = g.streaks || {}; g.waiting = g.waiting || {};
   if (g.table) g.table.c = arr(g.table.c); else g.table = null;
   return g;
 }
@@ -189,7 +226,7 @@ function dealInto(g, firstGame) {
   g.hands = {}; ids.forEach(id => g.hands[id] = []);
   d.forEach((c, i) => g.hands[ids[i % n]].push(c));      // dealt in order; extras land where they land
   ids.forEach(id => g.hands[id].sort(byVal));
-  g.table = null; g.under = null; g.prev = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.nice = null;
+  g.table = null; g.under = null; g.prev = null; g.locked = false; g.passes = 0; g.last = null; g.finished = []; g.fx = null;
   g.phase = 'play'; g.firstLead = firstGame; g.claimers = [];
   if (firstGame) {
     const holders = ids.filter(id => g.hands[id].some(c => val(c) === 0));
@@ -216,11 +253,12 @@ function joinRoom() {
     const r = s.val();
     if (!r) return flash('Room not found');
     const inGame = r.game && arr(r.game.order).includes(me);
-    if (r.game && !inGame) return flash('Game already in progress');
-    if (!inGame && Object.keys(r.players || {}).length >= 8) return flash('Room is full (8 max)');
+    if (!r.game && !(r.players && r.players[me]) && Object.keys(r.players || {}).length >= 8) return flash('Room is full (8 max)');
     roomCode = code; localStorage.setItem('killer_room', code);
     const p = (r.players && r.players[me]) ? {} : { joined: Date.now() };
-    db.ref('rooms/' + code + '/players/' + me).update({ name, ...p }).then(listen);
+    db.ref('rooms/' + code + '/players/' + me).update({ name, ...p }).then(() => {
+      if (r.game && !inGame) return db.ref('rooms/' + code + '/game/waiting/' + me).set(name);   // into the chair
+    }).then(listen);
   });
 }
 
@@ -267,7 +305,9 @@ function playSel() {
     g.table = { ...p, by: me };
     g.last = me; g.passes = 0; g.firstLead = false; g.prev = null;
     g.log = g.names[me] + ' played ' + p.c.map(label).join(' ');
-    if (nice) g.nice = { t: Date.now(), big: p.c.length > 1 };
+    const kkk = p.k === 'triple' && rk(p.c[0]) === R.indexOf('K');
+    const fx = p.k === 'killer' ? 'killer' : (p.k === 'bomb' ? 'bomb' : (kkk ? 'kkk' : (nice ? (p.c.length > 1 ? 'nicebig' : 'nice') : null)));
+    if (fx) g.fx = { t: Date.now(), type: fx };
     if (!g.hands[me].length) {
       g.finished.push(me);
       g.log += g.finished.length === 1 ? ' and WINS! 🏆' : ' and is out.';
@@ -289,7 +329,7 @@ function playSel() {
   sel.clear();
 }
 
-function pass() {
+function pass(auto) {
   act(g => {
     if (g.phase !== 'play') return 'Not now';
     if (g.turn !== me) return 'Not your turn';
@@ -299,9 +339,9 @@ function pass() {
     if (g.passes >= others) {
       g.prev = g.table; g.table = null; g.under = null; g.locked = false; g.passes = 0;
       g.turn = active(g).includes(g.last) ? g.last : nextActive(g, g.last);   // left is law
-      g.log = 'Everyone passed. ' + g.names[g.turn] + ' leads anything.';
+      g.log = (auto ? g.names[me] + ' auto-passed. ' : 'Everyone passed. ') + g.names[g.turn] + ' leads anything.';
     } else {
-      g.log = g.names[me] + ' passed.';
+      g.log = g.names[me] + (auto ? ' auto-passed (no playable cards).' : ' passed.');
       g.turn = nextActive(g, me);
     }
   });
@@ -312,6 +352,9 @@ function nextGame() {
   act(g => {
     if (g.phase !== 'over') return 'Game not over';
     const winner = g.finished[0];
+    Object.entries(g.waiting).forEach(([id, name]) => {      // out of the chair, into the game
+      if (!g.order.includes(id) && g.order.length < 8) { g.order.push(id); g.names[id] = name; delete g.waiting[id]; }
+    });
     dealInto(g, false);
     g.turn = winner; g.gameNo = (g.gameNo || 1) + 1; g.loser = null;
     g.log = g.names[winner] + ' won last game and leads anything.';
@@ -381,15 +424,21 @@ function renderLobby() {
 }
 
 function renderGame(g) {
-  if (!g.order.includes(me)) { $('#app').innerHTML = `<p>Game in progress.</p><button class="sec" onclick="leaveRoom()">Leave</button>`; return; }
-  // Nice overlay
-  if (g.nice && g.nice.t !== lastNice) {
-    if (lastNice !== null) showNice(g.nice.big);
-    lastNice = g.nice.t;
-  } else if (lastNice === null) lastNice = g.nice ? g.nice.t : 0;
+  const spectator = !g.order.includes(me);
+  // Big effects (nice / KKK / bomb / killer)
+  if (g.fx && g.fx.t !== lastFx) {
+    if (lastFx !== null) showFx(g.fx.type);
+    lastFx = g.fx.t;
+  } else if (lastFx === null) lastFx = g.fx ? g.fx.t : 0;
+  // Flash when it becomes your turn
+  const turnKey = g.phase === 'play' ? g.turn + '|' + (g.log || '') : '';
+  if (turnKey !== lastTurnKey) {
+    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) turnFlash();
+    lastTurnKey = turnKey;
+  }
 
   roomNames = g.names || {};
-  const hand = g.hands[me];
+  const hand = spectator ? [] : g.hands[me];
   const key = roomCode + ':' + (g.gameNo || 1);
   if (key !== groupKey) { groupKey = key; try { groups = JSON.parse(localStorage.getItem('killer_groups_' + key)) || []; } catch (e) { groups = []; } }
   groups = groups.map(gr => gr.filter(c => hand.includes(c))).filter(gr => gr.length);
@@ -423,6 +472,7 @@ function renderGame(g) {
       <div>${g.phase === 'over' ? 'Game over' : esc(g.names[g.turn]) + ' leads — play anything'}</div>`;
   }
 
+  const chairNames = Object.values(g.waiting);
   let over = '';
   if (g.phase === 'over') {
     const w = g.finished[0], l = g.loser;
@@ -432,16 +482,17 @@ function renderGame(g) {
       <h3>😵 ${esc(g.names[l])} loses</h3>
       ${(sw.w || 0) >= 3 ? `<p>🔥 ${esc(g.names[w])} has won ${sw.w} in a row!</p>` : ''}
       ${(sl.l || 0) >= 3 ? `<p>💀 ${esc(g.names[l])} has lost ${sl.l} in a row. Punishment time!</p>` : ''}
+      ${chairNames.length ? `<p>🪑 ${chairNames.map(esc).join(', ')} out of the chair next game</p>` : ''}
       ${room.host === me ? `<button class="full" onclick="nextGame()">Next game</button>` : '<p>Waiting for host…</p>'}
     </div></div>`;
   }
 
-  $('#app').innerHTML = `
-    <div class="players">${playersBar}</div>
-    <div class="table">${center}</div>
-    <div class="log">${esc(g.log || '')}</div>
-    <div id="msg" class="msg"></div>
-    <div class="hand">
+  const upName = g.phase === 'play' ? g.names[g.turn] : '';
+  const banner = upName ? `<div class="up ${myTurn ? 'mine' : ''}">${myTurn ? 'YOUR TURN' : esc(upName) + ' is up to play'}</div>` : '';
+  const chair = chairNames.length ? `<div class="chair">${chairNames.map(n => `🪑 <b>${esc(n)}</b> is in the chair`).join('<br>')}</div>` : '';
+  const handSection = spectator
+    ? `<div class="hand" style="text-align:center"><h2>🪑 You're in the chair</h2><p class="small">You're watching this game. You'll be dealt in when the next game starts.</p></div>`
+    : `<div class="hand">
       <div class="small" style="text-align:center;margin-bottom:8px">${myTurn ? '<b style="color:#ffd23f">Your turn</b>' : 'Your hand'} · ${hand.length} cards</div>
       <div class="cards" id="hand">${groups.map((gr, i) => `<div class="grp" data-g="${i}">${gr.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>`).join('')}${loose.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
       <div class="btns">
@@ -453,14 +504,29 @@ function renderGame(g) {
     <div class="btns">
       <button class="sec" onclick="pass()" ${myTurn && g.table ? '' : 'disabled'}>Pass</button>
       <button onclick="playSel()" ${myTurn && sel.size ? '' : 'disabled'}>Play</button>
-    </div>
+    </div>`;
+
+  $('#app').innerHTML = `
+    <div class="players">${playersBar}</div>
+    ${banner}
+    <div class="table">${center}</div>
+    <div class="log">${esc(g.log || '')}</div>
+    <div id="msg" class="msg"></div>
+    ${handSection}
     <div class="row" style="margin-top:24px;justify-content:center">
       ${room.host === me ? `<button class="sec" onclick="endGame()">${confirmEnd ? 'Tap again to end game' : 'End game'}</button>` : ''}
       <button class="sec" onclick="sel.clear();render()">Clear selection</button>
     </div>
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1}</p>
-    ${over}`;
+    ${chair}${over}`;
 
+  // Auto-pass only when there is truly no legal play
+  if (myTurn && g.table && !hasPlay(hand, g.table, g.locked)) {
+    const k = g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
+    if (autoKey !== k) { autoKey = k; setTimeout(() => pass(true), 1200); }
+  }
+
+  if (spectator) return;
   $('#hand').onclick = e => {
     const el = e.target.closest('.card');
     if (!el) { const gEl = e.target.closest('.grp'); if (gEl) selectGroup(+gEl.dataset.g); return; }
@@ -470,13 +536,26 @@ function renderGame(g) {
   };
 }
 
-function showNice(big) {
-  const n = $('#nice');
-  n.style.fontSize = big ? '120px' : '72px';
+const FX = {
+  nice:    { text: 'NICE', size: 72, ms: 1500 },
+  nicebig: { text: 'NICE', size: 120, ms: 2200 },
+  kkk:     { text: 'UH OH 😬', sub: 'KKK is bad', size: 72, ms: 2600 },
+  bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
+  killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true }
+};
+function showFx(type) {
+  const f = FX[type]; if (!f) return;
+  const n = $('#fx');
+  n.innerHTML = `<div style="font-size:${f.size}px">${f.text}</div>${f.sub ? `<div class="sub">${f.sub}</div>` : ''}`;
   n.style.display = 'flex';
   n.animate([{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1.1)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 400 });
-  if (navigator.vibrate) navigator.vibrate(big ? [100, 50, 100] : 80);
-  setTimeout(() => n.style.display = 'none', big ? 2200 : 1500);
+  if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
+  if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
+  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
+}
+function turnFlash() {
+  const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
 }
 
 // ---------- Boot (auto-rejoin after a disconnect) ----------
