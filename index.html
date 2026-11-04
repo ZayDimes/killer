@@ -130,10 +130,12 @@ function classify(cs) {
   if (same && n === 3) return { k: 'triple', c };
   if (same && n === 4) return { k: 'killer', c };
   if (n >= 3 && consec(r)) return { k: 'run', len: n, suited: c.every(x => su(x) === su(c[0])), c };
-  if (n >= 6 && n % 2 === 0) {
-    const pr = []; let ok = true;
-    for (let i = 0; i < n; i += 2) { if (r[i] !== r[i + 1]) ok = false; pr.push(r[i]); }
-    if (ok && consec(pr)) return { k: 'bomb', len: n / 2, c };
+  // Bomb: 3+ consecutive pairs, triples, or quads (w = 2, 3 or 4 cards per rank)
+  for (const w of [2, 3, 4]) {
+    if (n % w || n / w < 3) continue;
+    const gr = []; let ok = true;
+    for (let i = 0; i < n; i += w) { if (!r.slice(i, i + w).every(x => x === r[i])) ok = false; gr.push(r[i]); }
+    if (ok && consec(gr)) return { k: 'bomb', len: n / w, w, c };
   }
   return null;
 }
@@ -143,8 +145,9 @@ function canPlay(p, o, locked) {
   if (!o) return true;                                       // leading (bomb lead checked in playSel)
   if (p.k === 'killer') return o.k !== 'killer' || rk(topCard(p)) > rk(topCard(o));
   if (p.k === 'bomb') {
-    if (o.k === 'bomb') return p.len === o.len && beats(topCard(p), topCard(o));
-    return o.c.some(x => rk(x) === TWO);                     // bombs only go on 2s
+    if (o.c.some(x => rk(x) === TWO)) return true;           // any bomb goes on anything with a 2 (incl. a bomb ending in 2s)
+    if (o.k === 'bomb') return (p.w || 2) === (o.w || 2) && p.len === o.len && beats(topCard(p), topCard(o));
+    return false;                                            // bombs only go on 2s
   }
   if (p.k !== o.k) return false;
   if (p.k === 'run') {
@@ -175,7 +178,7 @@ function hasPlay(hand, t, locked) {
           if (pick.every(c => c !== undefined)) tries.push(pick);
         }
       }
-      if (rs.every(r => has(r, 2))) tries.push(rs.flatMap(r => by[r].slice(-2)));
+      for (const w of [2, 3, 4]) if (rs.every(r => has(r, w))) tries.push(rs.flatMap(r => by[r].slice(-w)));
     }
   }
   return tries.some(cs => { const p = classify(cs); return p && canPlay(p, t, locked); });
