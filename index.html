@@ -9,6 +9,7 @@
 <title>Killer</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden;max-width:100%}
 body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#0b4d2c;color:#fff;min-height:100vh}
 .screen{max-width:700px;margin:0 auto;padding:16px}
 h1{text-align:center;font-size:44px;margin:24px 0 8px;letter-spacing:2px}
@@ -80,7 +81,7 @@ button.danger{background:#c94a4a;color:#fff}
 #rules ul{margin:8px 0 4px;padding-left:20px;font-size:14px;line-height:1.45}
 #modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:60}
 #modal .box h2{margin-top:0}
-.grp{display:flex;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
+.grp{display:flex;flex-wrap:wrap;justify-content:center;max-width:100%;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
 </style>
 </head>
 <body>
