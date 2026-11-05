@@ -72,7 +72,7 @@ body.shake{animation:shake .7s}
 .mainbtns button{flex:1;font-size:22px;padding:20px 10px;border-radius:14px}
 .mainbtns .passbtn{background:#c94a4a;color:#fff}
 .mainbtns .playbtn{background:#ffd23f;color:#222}
-.minibtns{display:flex;gap:8px;justify-content:center;margin-top:22px}
+.minibtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:22px}
 .minibtns button{font-size:13px;padding:7px 12px;border-radius:8px;margin:0}
 button.danger{background:#c94a4a;color:#fff}
 #rules{padding-top:0;padding-bottom:22px}
@@ -239,6 +239,10 @@ function groupSel() {
   if (sel.size < 2) return flash('Select 2+ cards to group');
   groups = groups.map(gr => gr.filter(c => !sel.has(c))).filter(gr => gr.length);
   groups.push([...sel].sort(byVal)); sel.clear(); saveGroups(); render();
+}
+function ungroupSel() {
+  groups = groups.map(gr => gr.filter(c => !sel.has(c))).filter(gr => gr.length);
+  sel.clear(); saveGroups(); render();
 }
 function ungroupAll() { groups = []; saveGroups(); render(); }
 function selectGroup(i) { sel = new Set(groups[i]); render(); }
@@ -646,6 +650,7 @@ function renderGame(g) {
       <div class="cards" id="hand">${groups.map((gr, i) => `<div class="grp" data-g="${i}">${gr.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>`).join('')}${loose.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
       <div class="minibtns">
         <button class="sec" onclick="groupSel()" ${sel.size >= 2 ? '' : 'disabled'}>Group selected</button>
+        <button class="sec" onclick="ungroupSel()" ${[...sel].some(c => grouped.has(c)) ? '' : 'disabled'}>Ungroup selected</button>
         <button class="sec" onclick="ungroupAll()" ${groups.length ? '' : 'disabled'}>Ungroup all</button>
         <button class="sec" onclick="sel.clear();render()" ${sel.size ? '' : 'disabled'}>Clear</button>
       </div>
