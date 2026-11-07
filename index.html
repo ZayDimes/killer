@@ -617,22 +617,32 @@ function botMove(id) {
       g.phase = 'play'; g.turn = id; g.log = g.names[id] + ' claimed the 3♠ first and leads!'; return;
     }
     if (g.phase !== 'play' || g.turn !== id) return 'x';
-    const cs = botChoose(g, id);
-    return cs ? doPlay(g, id, cs) : doPass(g, id);
+    let cs = null;
+    try { cs = botChoose(g, id); } catch (e) { cs = null; }
+    if (!cs && !g.table) cs = [g.hands[id].find(c => !g.firstLead || val(c) === 0) || g.hands[id][0]];   // leading: must play something
+    let err = cs ? doPlay(g, id, cs) : doPass(g, id);
+    if (err && g.table) err = doPass(g, id);                       // play failed? just pass
+    return err;
   }, hallAfter, true);
 }
-let botKey = '';
-function driveBots(g) {
-  if (!room || room.host !== me) return;                      // only the host's phone plays for the CPU
-  let id = null, wait = 1400;
+
+// Heartbeat: keeps nudging the CPU until it moves. The host's phone moves it after ~2s;
+// if the host's phone is asleep, any other player's phone takes over after ~6s.
+let botSeen = '', botSince = 0, botTry = 0, botDelay = 0;
+setInterval(() => {
+  if (!room || !room.game) return;
+  const g = norm(JSON.parse(JSON.stringify(room.game)));
+  let id = null;
   if (g.phase === 'play' && g.bots[g.turn]) id = g.turn;
-  else if (g.phase === 'claim') { id = g.claimers.find(c => g.bots[c]); wait = 2500; }
-  if (!id) return;
-  const k = id + '|' + g.phase + '|' + (g.log || '') + '|' + g.dealId;
-  if (botKey === k) return;
-  botKey = k;
-  setTimeout(() => botMove(id), wait + Math.random() * 800);
-}
+  else if (g.phase === 'claim') id = g.claimers.find(c => g.bots[c]);
+  if (!id) { botSeen = ''; return; }
+  const key = id + '|' + g.phase + '|' + (g.log || '') + '|' + g.dealId + '|' + g.passes;
+  const now = Date.now();
+  if (key !== botSeen) { botSeen = key; botSince = now; botTry = 0; botDelay = (g.phase === 'claim' ? 2500 : 1400) + Math.random() * 800; }
+  const wait = room.host === me ? botDelay : 6000 + Math.random() * 1500;
+  if (now - botSince >= wait && now - botTry >= 3000) { botTry = now; botMove(id); }
+}, 500);
+function driveBots() {}
 
 // ---------- Rendering ----------
 function miniPlay(pl, title) {
