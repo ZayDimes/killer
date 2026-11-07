@@ -644,6 +644,23 @@ setInterval(() => {
 }, 500);
 function driveBots() {}
 
+// ---------- Copy / share the room code ----------
+function copyCode() {
+  const done = () => flash('Copied ' + roomCode + ' ✅');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(roomCode).then(done, fallbackCopy);
+  else fallbackCopy();
+}
+function fallbackCopy() {
+  const t = document.createElement('textarea');
+  t.value = roomCode; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+  document.body.appendChild(t); t.select(); t.setSelectionRange(0, 99);
+  try { document.execCommand('copy'); flash('Copied ' + roomCode + ' ✅'); } catch (e) { flash('Code: ' + roomCode); }
+  t.remove();
+}
+function shareCode() {
+  navigator.share({ text: 'Join my Killer game! Room code: ' + roomCode + '\n' + location.origin + location.pathname }).catch(() => {});
+}
+
 // ---------- Rendering ----------
 function miniPlay(pl, title) {
   return `<div class="prevplay"><div class="small">${title}</div><div class="cards">${arr(pl.c).map(c => cardHTML(c, 'mini')).join('')}</div><div class="small">${esc(roomNames[pl.by] || '')}</div></div>`;
@@ -735,6 +752,10 @@ function renderLobby() {
     <h1>KILLER</h1>
     <p style="text-align:center">Room code</p>
     <div class="code">${esc(roomCode)}</div>
+    <div class="row" style="justify-content:center;margin:6px 0 10px">
+      <button class="sec" onclick="copyCode()">📋 Copy code</button>
+      ${navigator.share ? `<button class="sec" onclick="shareCode()">📤 Share invite</button>` : ''}
+    </div>
     <p class="small" style="text-align:center">Seats go left in this order</p>
     <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}${host && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`).join('')}</div>
     <div style="margin-top:20px">
@@ -861,7 +882,7 @@ function renderGame(g) {
       ${room.host === me ? `<button class="danger" onclick="endGame()">End game</button>` : `<button class="danger" onclick="dropOut()">${spectator ? 'Leave the chair' : 'Drop out'}</button>`}
       ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
     </div>
-    <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1}</p>
+    <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
     ${chair}${over}`;
 
   // Auto-pass only when there is truly no legal play
