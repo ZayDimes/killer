@@ -108,6 +108,7 @@ button.danger{background:#c94a4a;color:#fff}
     <li><b>Bomb</b> (3+ consecutive pairs, triples, or quads): only goes on a play with a 2 in it (including a bomb with 2s). On a bomb without 2s: same type and length, equal or higher. Can't be led unless the last round ended on a 2.</li>
     <li><b>9 on a 6</b> = everyone says <b>NICE</b>.</li>
     <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row gets flagged too.</li>
+    <li>🤖 <b>CPU:</b> the host can add a CPU in the lobby for 1v1. When a 3rd person joins, the CPU leaves after that game. CPU games don't count for the Hall of Fame.</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -265,7 +266,7 @@ function flash(t) {
 function norm(g) {
   g.order = arr(g.order); g.finished = arr(g.finished); g.claimers = arr(g.claimers);
   g.hands = g.hands || {}; g.order.forEach(id => g.hands[id] = arr(g.hands[id]));
-  g.streaks = g.streaks || {}; g.waiting = g.waiting || {}; g.tally = g.tally || {};
+  g.streaks = g.streaks || {}; g.waiting = g.waiting || {}; g.tally = g.tally || {}; g.bots = g.bots || {};
   if (g.table) g.table.c = arr(g.table.c); else g.table = null;
   return g;
 }
@@ -280,7 +281,7 @@ function nextActive(g, id) {
 }
 
 // Run a move atomically so two phones can't clash.
-function act(fn, after) {
+function act(fn, after, quiet) {
   let err = null;
   gameRef().transaction(g => {
     if (!g) return g;
@@ -288,7 +289,7 @@ function act(fn, after) {
     if (err) return;            // abort
     return g;
   }, (e, committed, snap) => {
-    if (err) flash(err); else if (e) flash(e.message);
+    if (err) { if (!quiet) flash(err); } else if (e) { if (!quiet) flash(e.message); }
     else if (committed && after) after(snap && snap.val());
   });
 }
@@ -366,10 +367,15 @@ function leaveRoom() {
 }
 
 function startGame() {
-  const ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
+  let ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
+  if (ps.filter(p => !p[1].bot).length >= 3 && ps.some(p => p[1].bot)) {   // 3+ real people: CPU leaves
+    ps.filter(p => p[1].bot).forEach(p => db.ref('rooms/' + roomCode + '/players/' + p[0]).remove());
+    ps = ps.filter(p => !p[1].bot);
+  }
   if (ps.length < 2) return flash('Need at least 2 players');
   const g = { order: ps.map(p => p[0]), names: Object.fromEntries(ps.map(p => [p[0], p[1].name])),
-              streaks: room.streaks || {}, tally: room.tally || {}, gameNo: 1 };
+              streaks: room.streaks || {}, tally: room.tally || {}, gameNo: 1,
+              bots: Object.fromEntries(ps.filter(p => p[1].bot).map(p => [p[0], true])) };
   dealInto(g, true);
   gameRef().set(g);
 }
@@ -382,9 +388,8 @@ function claim() {
   });
 }
 
-function playSel() {
-  const cards = [...sel];
-  act(g => {
+function doPlay(g, who, cards) {
+    const me = who;
     if (g.phase !== 'play') return 'Not now';
     if (g.turn !== me) return 'Not your turn';
     const hand = g.hands[me];
@@ -423,22 +428,29 @@ function playSel() {
         });
         const tw = g.tally[winner] || { w: 0, l: 0 }; tw.w = (tw.w || 0) + 1; g.tally[winner] = tw;
         const tl = g.tally[loser] || { w: 0, l: 0 }; tl.l = (tl.l || 0) + 1; g.tally[loser] = tl;
-        g.endInfo = { broken, players: g.order.length,
-                      hall: g.streaks[winner].w % 3 === 0 && g.order.length >= 3 ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts
+        const humans = g.order.filter(id => !g.bots[id]).length;
+        g.endInfo = { broken, players: humans,
+                      hall: g.streaks[winner].w % 3 === 0 && humans >= 3 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 3+ real players
         if (g.streaks[winner].w % 3 === 0) g.fx = { t: Date.now(), type: 'threewin' };
         else if (g.streaks[loser].l % 3 === 0) g.fx = { t: Date.now(), type: 'threeloss' };
         return;
       }
     }
     g.turn = nextActive(g, me);
-  }, g => {
-    if (g && g.phase === 'over' && g.endInfo && g.endInfo.hall) addToHall(g.endInfo.hall);   // only the player who ended the game writes it
-  });
+}
+const hallAfter = g => { if (g && g.phase === 'over' && g.endInfo && g.endInfo.hall) addToHall(g.endInfo.hall); };   // only the device that ended the game writes it
+function playSel() {
+  const cards = [...sel];
+  act(g => doPlay(g, me, cards), hallAfter);
   sel.clear();
 }
 
 function pass(auto) {
-  act(g => {
+  act(g => doPass(g, me));
+  sel.clear();
+}
+function doPass(g, who) {
+    const me = who;
     if (g.phase !== 'play') return 'Not now';
     if (g.turn !== me) return 'Not your turn';
     if (!g.table) return 'You\'re leading — play something';
@@ -452,21 +464,28 @@ function pass(auto) {
       g.log = g.names[me] + ' passed.';
       g.turn = nextActive(g, me);
     }
-  });
-  sel.clear();
 }
 
 function nextGame() {
+  let dropped = [];
   act(g => {
     if (g.phase !== 'over') return 'Game not over';
-    const winner = g.finished.find(id => g.order.includes(id)) || g.order[0];
+    dropped = [];
+    let winner = g.finished.find(id => g.order.includes(id)) || g.order[0];
     Object.entries(g.waiting).forEach(([id, name]) => {      // out of the chair, into the game
       if (!g.order.includes(id) && g.order.length < 8) { g.order.push(id); g.names[id] = name; delete g.waiting[id]; }
     });
+    // 3+ real people now? The CPU leaves.
+    if (g.order.filter(id => !g.bots[id]).length >= 3) {
+      dropped = g.order.filter(id => g.bots[id]);
+      g.order = g.order.filter(id => !g.bots[id]);
+      dropped.forEach(id => delete g.bots[id]);
+      if (dropped.includes(winner)) winner = g.order[0];
+    }
     dealInto(g, false);
     g.turn = winner; g.gameNo = (g.gameNo || 1) + 1; g.loser = null; g.endInfo = null;
-    g.log = g.names[winner] + ' won last game and leads anything.';
-  });
+    g.log = (dropped.length ? '🤖 The CPU left the table. ' : '') + g.names[winner] + ' leads anything.';
+  }, () => dropped.forEach(id => db.ref('rooms/' + roomCode + '/players/' + id).remove()));
 }
 
 function confirmBox(text, onYes) {
@@ -531,6 +550,87 @@ function kick(id) {
     if (room.game) act(g => { removeFromGame(g, id, 'was kicked by the host'); }, done);
     else done();
   });
+}
+
+// ---------- CPU opponent (runs on the host's phone) ----------
+function addCpu() {
+  const ps = Object.values(room.players || {});
+  if (ps.some(p => p.bot)) return flash('Already have a CPU');
+  const id = 'cpu' + Date.now().toString(36);
+  db.ref('rooms/' + roomCode + '/players/' + id).set({ name: 'CPU 🤖', joined: Date.now(), bot: true });
+}
+
+// Every combo the hand could make (low and high versions of each)
+function allPlays(hand) {
+  const by = {}, out = [];
+  hand.forEach(c => (by[rk(c)] = by[rk(c)] || []).push(c));
+  Object.values(by).forEach(a => a.sort(byVal));
+  for (const r in by) {
+    const a = by[r];
+    a.forEach(c => out.push([c]));
+    for (let n = 2; n <= Math.min(4, a.length); n++) { out.push(a.slice(0, n)); out.push(a.slice(-n)); }
+  }
+  const has = (r, n) => by[r] && by[r].length >= n;
+  for (let L = 3; L <= 13; L++) for (let st = 0; st + L <= 13; st++) {
+    const rs = Array.from({ length: L }, (_, i) => st + i);
+    if (rs.every(r => has(r, 1))) {
+      out.push(rs.map(r => by[r][0])); out.push(rs.map(r => by[r][by[r].length - 1]));
+      for (let x = 0; x < 4; x++) { const pick = rs.map(r => by[r].find(c => su(c) === x)); if (pick.every(c => c !== undefined)) out.push(pick); }
+    }
+    for (const w of [2, 3, 4]) if (rs.every(r => has(r, w))) { out.push(rs.flatMap(r => by[r].slice(0, w))); out.push(rs.flatMap(r => by[r].slice(-w))); }
+  }
+  return out;
+}
+
+function botChoose(g, id) {
+  const hand = g.hands[id], t = g.table;
+  const opp = Math.min(...active(g).filter(x => x !== id).map(x => g.hands[x].length));
+  const legal = allPlays(hand).map(cs => ({ cs, p: classify(cs) })).filter(({ cs, p }) => {
+    if (!p) return false;
+    if (g.firstLead && !cs.some(c => val(c) === 0)) return false;
+    if (!t && p.k === 'bomb' && !(g.prev && arr(g.prev.c).some(x => rk(x) === TWO))) return false;
+    return canPlay(p, t, g.locked);
+  });
+  if (!legal.length) return null;
+  const win = legal.find(x => x.cs.length === hand.length);
+  if (win) return win.cs;                                     // can go out? do it
+  const power = x => x.p.k === 'killer' || x.p.k === 'bomb' || x.cs.some(c => rk(c) === TWO);
+  const urgent = opp <= 3 || hand.length <= 4;                // someone's close: stop holding back
+  let pool = urgent ? legal : legal.filter(x => !power(x));
+  if (!pool.length) {
+    if (t && Math.random() < 0.6) return null;                // usually save the big stuff
+    pool = legal;
+  }
+  const score = x => t
+    ? val(topCard(x.p)) + (power(x) ? 60 : 0)                 // follow as cheaply as possible
+    : val(topCard(x.p)) * 2 - x.cs.length * 9 + (power(x) ? 120 : 0);   // lead: dump low cards, longer combos first
+  pool.sort((a, b) => score(a) - score(b));
+  return pool[0].cs;
+}
+
+function botMove(id) {
+  act(g => {
+    if (!g.bots[id]) return 'x';
+    if (g.phase === 'claim') {
+      if (!g.claimers.includes(id)) return 'x';
+      g.phase = 'play'; g.turn = id; g.log = g.names[id] + ' claimed the 3♠ first and leads!'; return;
+    }
+    if (g.phase !== 'play' || g.turn !== id) return 'x';
+    const cs = botChoose(g, id);
+    return cs ? doPlay(g, id, cs) : doPass(g, id);
+  }, hallAfter, true);
+}
+let botKey = '';
+function driveBots(g) {
+  if (!room || room.host !== me) return;                      // only the host's phone plays for the CPU
+  let id = null, wait = 1400;
+  if (g.phase === 'play' && g.bots[g.turn]) id = g.turn;
+  else if (g.phase === 'claim') { id = g.claimers.find(c => g.bots[c]); wait = 2500; }
+  if (!id) return;
+  const k = id + '|' + g.phase + '|' + (g.log || '') + '|' + g.dealId;
+  if (botKey === k) return;
+  botKey = k;
+  setTimeout(() => botMove(id), wait + Math.random() * 800);
 }
 
 // ---------- Rendering ----------
@@ -627,7 +727,7 @@ function renderLobby() {
     <p class="small" style="text-align:center">Seats go left in this order</p>
     <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}${host && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`).join('')}</div>
     <div style="margin-top:20px">
-      ${host ? `<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
+      ${host ? `${ps.filter(p => !p[1].bot).length < 3 ? `<button class="full sec" onclick="addCpu()" ${ps.some(p => p[1].bot) ? 'disabled' : ''}>🤖 Add CPU player</button>` : ''}<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
              : `<p style="text-align:center">Waiting for the host to start…</p>`}
       <button class="full sec" onclick="leaveRoom()">Leave</button>
     </div>
@@ -698,7 +798,7 @@ function renderGame(g) {
     const tw = g.tally[w] || {}, tl = g.tally[l] || {};
     const info = g.endInfo || {}, nW = esc(g.names[w]), nL = esc(g.names[l]);
     let winNote = '', lossNote = '';
-    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${(info.players || g.order.length) >= 3 ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(1v1 doesn't count for the Hall of Fame)`}</div>`;
+    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${info.hall ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(Hall of Fame needs 3+ real players, no CPU wins)`}</div>`;
     else if (sw.w > 3) winNote = `<div class="note">🔥 ${nW} is still on a streak: <b>${sw.w} wins in a row</b></div>`;
     else if (sw.w === 2) winNote = `<div class="note">🔥 ${nW} has won 2 in a row. One more for the Hall of Fame!</div>`;
     if (sl.l && sl.l % 3 === 0) lossNote = `<div class="big3 loss">💀💀💀 ${sl.l} LOSSES IN A ROW! 💀💀💀<br>${nL}: PUNISHMENT TIME!</div>`;
@@ -759,6 +859,7 @@ function renderGame(g) {
     if (autoKey !== k) { autoKey = k; setTimeout(() => { const n = room && room.game; if (autoPassOn && n && n.turn === me && n.log === g.log) pass(true); }, 5000); }
   }
 
+  driveBots(g);
   if (spectator) return;
   $('#hand').onclick = e => {
     const el = e.target.closest('.card');
