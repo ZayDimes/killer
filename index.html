@@ -108,7 +108,7 @@ button.danger{background:#c94a4a;color:#fff}
     <li><b>Bomb</b> (3+ consecutive pairs, triples, or quads): only goes on a play with a 2 in it (including a bomb with 2s). On a bomb without 2s: same type and length, equal or higher. Can't be led unless the last round ended on a 2.</li>
     <li><b>9 on a 6</b> = everyone says <b>NICE</b>.</li>
     <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row gets flagged too.</li>
-    <li>🤖 <b>CPU:</b> the host can add a CPU in the lobby for 1v1. When a 3rd person joins, the CPU leaves after that game. CPU games don't count for the Hall of Fame.</li>
+    <li>🤖 <b>CPU:</b> the host can add a CPU in the lobby for 1v1. When a 3rd person joins, the CPU leaves after that game and the 3♠ leads the next one. CPU games don't count for the Hall of Fame.</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -480,11 +480,12 @@ function nextGame() {
       dropped = g.order.filter(id => g.bots[id]);
       g.order = g.order.filter(id => !g.bots[id]);
       dropped.forEach(id => delete g.bots[id]);
-      if (dropped.includes(winner)) winner = g.order[0];
     }
-    dealInto(g, false);
-    g.turn = winner; g.gameNo = (g.gameNo || 1) + 1; g.loser = null; g.endInfo = null;
-    g.log = (dropped.length ? '🤖 The CPU left the table. ' : '') + g.names[winner] + ' leads anything.';
+    const fresh = dropped.length > 0;                        // CPU just left: fresh start, 3♠ leads
+    dealInto(g, fresh);
+    g.gameNo = (g.gameNo || 1) + 1; g.loser = null; g.endInfo = null;
+    if (fresh) g.log = '🤖 The CPU left the table. ' + g.log;
+    else { g.turn = winner; g.log = g.names[winner] + ' won last game and leads anything.'; }
   }, () => dropped.forEach(id => db.ref('rooms/' + roomCode + '/players/' + id).remove()));
 }
 
