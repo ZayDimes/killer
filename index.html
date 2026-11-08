@@ -130,7 +130,7 @@ body.hasbar{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
     <li><b>Bomb</b> (3+ consecutive pairs, triples, or quads): only goes on a play with a 2 in it (including a bomb with 2s). On a bomb without 2s: same type and length, equal or higher. Can't be led unless the last round ended on a 2.</li>
     <li><b>9 on a 6</b> = everyone says <b>NICE</b>.</li>
     <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row gets flagged too.</li>
-    <li>🤖 <b>CPU:</b> the host can add a CPU in the lobby for 1v1. When a 3rd person joins, the CPU leaves after that game and the 3♠ leads the next one. CPU games don't count for the Hall of Fame.</li>
+    <li>🤖 <b>CPU:</b> the host can add up to 2 CPUs in the lobby. When a 3rd real person joins, the CPUs leave after that game and the 3♠ leads the next one. CPU games don't count for the Hall of Fame.</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -506,7 +506,7 @@ function nextGame() {
     const fresh = dropped.length > 0;                        // CPU just left: fresh start, 3♠ leads
     dealInto(g, fresh);
     g.gameNo = (g.gameNo || 1) + 1; g.loser = null; g.endInfo = null;
-    if (fresh) g.log = '🤖 The CPU left the table. ' + g.log;
+    if (fresh) g.log = (dropped.length > 1 ? '🤖 The CPUs left the table. ' : '🤖 The CPU left the table. ') + g.log;
     else { g.turn = winner; g.log = g.names[winner] + ' won last game and leads anything.'; }
   }, () => dropped.forEach(id => db.ref('rooms/' + roomCode + '/players/' + id).remove()));
 }
@@ -578,9 +578,12 @@ function kick(id) {
 // ---------- CPU opponent (runs on the host's phone) ----------
 function addCpu() {
   const ps = Object.values(room.players || {});
-  if (ps.some(p => p.bot)) return flash('Already have a CPU');
+  const bots = ps.filter(p => p.bot).map(p => p.name);
+  if (bots.length >= 2) return flash('Max 2 CPUs');
+  if (ps.length >= 8) return flash('Room is full (8 max)');
+  const name = bots.includes('CPU 🤖') ? 'CPU 2 🤖' : 'CPU 🤖';
   const id = 'cpu' + Date.now().toString(36);
-  db.ref('rooms/' + roomCode + '/players/' + id).set({ name: 'CPU 🤖', joined: Date.now(), bot: true });
+  db.ref('rooms/' + roomCode + '/players/' + id).set({ name, joined: Date.now(), bot: true });
 }
 
 // Every combo the hand could make (low and high versions of each)
@@ -782,7 +785,7 @@ function renderLobby() {
     <p class="small" style="text-align:center">Seats go left in this order</p>
     <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}${host && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`).join('')}</div>
     <div style="margin-top:20px">
-      ${host ? `${ps.filter(p => !p[1].bot).length < 3 ? `<button class="full sec" onclick="addCpu()" ${ps.some(p => p[1].bot) ? 'disabled' : ''}>🤖 Add CPU player</button>` : ''}<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
+      ${host ? `${ps.filter(p => !p[1].bot).length < 3 ? `<button class="full sec" onclick="addCpu()" ${ps.filter(p => p[1].bot).length >= 2 ? 'disabled' : ''}>🤖 Add CPU player (${ps.filter(p => p[1].bot).length}/2)</button>` : ''}<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
              : `<p style="text-align:center">Waiting for the host to start…</p>`}
       <button class="full sec" onclick="leaveRoom()">Leave</button>
     </div>
