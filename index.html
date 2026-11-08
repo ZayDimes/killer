@@ -135,7 +135,7 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
     <li><b>Bomb</b> (3+ consecutive pairs, triples, or quads): only goes on a play with a 2 in it (including a bomb with 2s). On a bomb without 2s: same type and length, equal or higher. Can't be led unless the last round ended on a 2.</li>
     <li><b>9 on a 6</b> = everyone says <b>NICE</b>.</li>
     <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row gets flagged too.</li>
-    <li>🤖 <b>CPU:</b> the host can add up to 2 CPUs in the lobby. When a 3rd real person joins, the CPUs leave after that game and the 3♠ leads the next one. CPU games don't count for the Hall of Fame.</li>
+    <li>🤖 <b>CPU:</b> the host can add up to 2 CPUs in the lobby, with any number of players. If someone new joins from the chair and that makes 3+ real people, the CPUs leave after that game and the 3♠ leads the next one. CPU wins never count for the Hall of Fame (it still needs 3+ real people).</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -394,11 +394,7 @@ function leaveRoom() {
 }
 
 function startGame() {
-  let ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
-  if (ps.filter(p => !p[1].bot).length >= 3 && ps.some(p => p[1].bot)) {   // 3+ real people: CPU leaves
-    ps.filter(p => p[1].bot).forEach(p => db.ref('rooms/' + roomCode + '/players/' + p[0]).remove());
-    ps = ps.filter(p => !p[1].bot);
-  }
+  const ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
   if (ps.length < 2) return flash('Need at least 2 players');
   const g = { order: ps.map(p => p[0]), names: Object.fromEntries(ps.map(p => [p[0], p[1].name])),
               streaks: room.streaks || {}, tally: room.tally || {}, gameNo: 1,
@@ -499,11 +495,13 @@ function nextGame() {
     if (g.phase !== 'over') return 'Game not over';
     dropped = [];
     let winner = g.finished.find(id => g.order.includes(id)) || g.order[0];
+    let joined = 0;
     Object.entries(g.waiting).forEach(([id, name]) => {      // out of the chair, into the game
-      if (!g.order.includes(id) && g.order.length < 8) { g.order.push(id); g.names[id] = name; delete g.waiting[id]; }
+      if (!g.order.includes(id) && g.order.length < 8) { g.order.push(id); g.names[id] = name; delete g.waiting[id]; joined++; }
     });
-    // 3+ real people now? The CPU leaves.
-    if (g.order.filter(id => !g.bots[id]).length >= 3) {
+    // Someone new came out of the chair and there are now 3+ real people? The CPUs leave.
+    // (A CPU the host adds in the lobby with 3+ people stays until someone new joins.)
+    if (joined && g.order.filter(id => !g.bots[id]).length >= 3) {
       dropped = g.order.filter(id => g.bots[id]);
       g.order = g.order.filter(id => !g.bots[id]);
       dropped.forEach(id => delete g.bots[id]);
@@ -790,7 +788,7 @@ function renderLobby() {
     <p class="small" style="text-align:center">Seats go left in this order</p>
     <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}${host && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`).join('')}</div>
     <div style="margin-top:20px">
-      ${host ? `${ps.filter(p => !p[1].bot).length < 3 ? `<button class="full sec" onclick="addCpu()" ${ps.filter(p => p[1].bot).length >= 2 ? 'disabled' : ''}>🤖 Add CPU player (${ps.filter(p => p[1].bot).length}/2)</button>` : ''}<button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
+      ${host ? `<button class="full sec" onclick="addCpu()" ${ps.filter(p => p[1].bot).length >= 2 || ps.length >= 8 ? 'disabled' : ''}>🤖 Add CPU player (${ps.filter(p => p[1].bot).length}/2)</button><button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
              : `<p style="text-align:center">Waiting for the host to start…</p>`}
       <button class="full sec" onclick="leaveRoom()">Leave</button>
     </div>
@@ -861,7 +859,7 @@ function renderGame(g) {
     const tw = g.tally[w] || {}, tl = g.tally[l] || {};
     const info = g.endInfo || {}, nW = esc(g.names[w]), nL = esc(g.names[l]);
     let winNote = '', lossNote = '';
-    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${info.hall ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(Hall of Fame needs 3+ real players, no CPU wins)`}</div>`;
+    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${info.hall ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(Hall of Fame needs 3+ real people, and CPUs don't count)`}</div>`;
     else if (sw.w > 3) winNote = `<div class="note">🔥 ${nW} is still on a streak: <b>${sw.w} wins in a row</b></div>`;
     else if (sw.w === 2) winNote = `<div class="note">🔥 ${nW} has won 2 in a row. One more for the Hall of Fame!</div>`;
     if (sl.l && sl.l % 3 === 0) lossNote = `<div class="big3 loss">💀💀💀 ${sl.l} LOSSES IN A ROW! 💀💀💀<br>${nL}: PUNISHMENT TIME!</div>`;
