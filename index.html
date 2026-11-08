@@ -116,6 +116,9 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 #rules details{padding:6px 12px;border-radius:10px;background:#00000020}
 #rules summary{font-size:13px;font-weight:600;opacity:.75}
 #rules ul{font-size:13px}
+.lvl{display:flex;gap:6px;align-items:center;justify-content:center;font-size:14px;margin-bottom:4px}
+.lvl button{font-size:14px;padding:8px 14px;margin:0}
+.lvl button.on{background:#ffd23f;color:#222}
 </style>
 </head>
 <body>
@@ -134,8 +137,8 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
     <li><b>Killer</b> (four of a kind): beats anything, including bombs. Higher killer beats lower. Can be led.</li>
     <li><b>Bomb</b> (3+ consecutive pairs, triples, or quads): only goes on a play with a 2 in it (including a bomb with 2s). On a bomb without 2s: same type and length, equal or higher. Can't be led unless the last round ended on a 2.</li>
     <li><b>9 on a 6</b> = everyone says <b>NICE</b>.</li>
-    <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row gets flagged too.</li>
-    <li>🤖 <b>CPU:</b> the host can add up to 2 CPUs in the lobby, with any number of players. If someone new joins from the chair and that makes 3+ real people, the CPUs leave after that game and the 3♠ leads the next one. CPU wins never count for the Hall of Fame (it still needs 3+ real people).</li>
+    <li><b>3 losses in a row</b> = punishment. 🔥 3 wins in a row puts you in the Hall of Fame, but only in games with 4+ real people.</li>
+    <li>🤖 <b>CPU:</b> the host can add up to 2 CPUs in the lobby (Easy, Medium or Hard), with any number of players. If someone new joins from the chair and that makes 3+ real people, the CPUs leave after that game and the 3♠ leads the next one. CPU wins never count for the Hall of Fame.</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -324,19 +327,19 @@ function act(fn, after, quiet) {
 // ---------- Hall of Fame (permanent, stored in the database) ----------
 const hallKey = n => String(n).trim().toLowerCase().replace(/[.#$\[\]\/]/g, '_') || 'someone';
 function addToHall(name) {
-  db.ref('rooms/_hall/' + hallKey(name)).transaction(h => {
+  db.ref('rooms/_hall2/' + hallKey(name)).transaction(h => {
     h = h || { name, count: 0 };
     h.name = name; h.count = (h.count || 0) + 1;
     return h;
   });
 }
 function loadHall() {
-  db.ref('rooms/_hall').get().then(s => {
+  db.ref('rooms/_hall2').get().then(s => {
     const box = $('#hof'); if (!box) return;
     const list = Object.values(s.val() || {}).filter(h => h && h.count).sort((a, b) => b.count - a.count);
     box.innerHTML = list.length
       ? '<ol>' + list.map((h, i) => `<li><span>${i === 0 ? '👑' : '🔥'} ${esc(h.name)}</span><b>${h.count}× 3 in a row</b></li>`).join('') + '</ol>'
-      : '<p class="small" style="margin:0">No one yet. Win 3 in a row in a 3+ player game to get on here.</p>';
+      : '<p class="small" style="margin:0">No one yet. Win 3 in a row in a game with 4+ real people to get on here.</p>';
     // a 6-game streak counts twice, 9 counts three times, etc.
   }).catch(() => {});
 }
@@ -398,7 +401,7 @@ function startGame() {
   if (ps.length < 2) return flash('Need at least 2 players');
   const g = { order: ps.map(p => p[0]), names: Object.fromEntries(ps.map(p => [p[0], p[1].name])),
               streaks: room.streaks || {}, tally: room.tally || {}, gameNo: 1,
-              bots: Object.fromEntries(ps.filter(p => p[1].bot).map(p => [p[0], true])) };
+              bots: Object.fromEntries(ps.filter(p => p[1].bot).map(p => [p[0], p[1].level || 'hard'])) };
   dealInto(g, true);
   gameRef().set(g);
 }
@@ -453,7 +456,7 @@ function doPlay(g, who, cards) {
         const tl = g.tally[loser] || { w: 0, l: 0 }; tl.l = (tl.l || 0) + 1; g.tally[loser] = tl;
         const humans = g.order.filter(id => !g.bots[id]).length;
         g.endInfo = { broken, players: humans,
-                      hall: g.streaks[winner].w % 3 === 0 && humans >= 3 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 3+ real players
+                      hall: g.streaks[winner].w % 3 === 0 && humans >= 4 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 4+ real people
         if (g.streaks[winner].w % 3 === 0) g.fx = { t: Date.now(), type: 'threewin' };
         else if (g.streaks[loser].l % 3 === 0) g.fx = { t: Date.now(), type: 'threeloss' };
         return;
@@ -584,9 +587,14 @@ function addCpu() {
   const bots = ps.filter(p => p.bot).map(p => p.name);
   if (bots.length >= 2) return flash('Max 2 CPUs');
   if (ps.length >= 8) return flash('Room is full (8 max)');
-  const name = bots.includes('CPU 🤖') ? 'CPU 2 🤖' : 'CPU 🤖';
+  const n = bots.some(b => /^CPU 🤖/.test(b)) ? 2 : 1;
+  const L = { easy: 'Easy', medium: 'Medium', hard: 'Hard' }[cpuLevel];
+  const name = (n === 1 ? 'CPU 🤖' : 'CPU 2 🤖') + ' ' + L;
   const id = 'cpu' + Date.now().toString(36);
-  db.ref('rooms/' + roomCode + '/players/' + id).set({ name, joined: Date.now(), bot: true });
+  db.ref('rooms/' + roomCode + '/players/' + id).set({ name, joined: Date.now(), bot: true, level: cpuLevel });
+}
+let cpuLevel = localStorage.getItem('killer_cpulevel') || 'medium';
+function setLevel(l) { cpuLevel = l; try { localStorage.setItem('killer_cpulevel', l); } catch (e) {} render();
 }
 
 // Every combo the hand could make (low and high versions of each)
@@ -613,6 +621,76 @@ function allPlays(hand) {
 
 function botChoose(g, id) {
   const hand = g.hands[id], t = g.table;
+  const others = active(g).filter(x => x !== id);
+  const counts = others.map(x => g.hands[x].length);
+  const minOpp = Math.min(...counts), maxOpp = Math.max(...counts);
+  const legal = allPlays(hand).map(cs => ({ cs, p: classify(cs) })).filter(({ cs, p }) => {
+    if (!p) return false;
+    if (g.firstLead && !cs.some(c => val(c) === 0)) return false;
+    if (!t && p.k === 'bomb' && !(g.prev && arr(g.prev.c).some(x => rk(x) === TWO))) return false;
+    return canPlay(p, t, g.locked);
+  });
+  if (!legal.length) return null;
+  const win = legal.find(x => x.cs.length === hand.length);
+  if (win) return win.cs;                                     // can go out? do it
+
+  // Card counting: which cards are still out there (not WHO has them, just what's left)
+  const unseen = others.flatMap(x => g.hands[x]);
+  const threats = allPlays(unseen).map(classify).filter(q => q && q.c.length <= maxOpp);
+  const bossMemo = new Map();
+  const boss = x => {                                          // can anything still out beat this?
+    if (!bossMemo.has(x)) {
+      const lk = g.locked || (x.p.k === 'run' && x.p.suited);
+      bossMemo.set(x, !threats.some(q => canPlay(q, x.p, lk)));
+    }
+    return bossMemo.get(x);
+  };
+  const cnt = {}; hand.forEach(c => cnt[rk(c)] = (cnt[rk(c)] || 0) + 1);
+  const breaks = x => {                                        // splitting up pairs/triples hurts later
+    const used = {}; x.cs.forEach(c => used[rk(c)] = (used[rk(c)] || 0) + 1);
+    return Object.keys(used).reduce((n, r) => n + (cnt[r] >= 2 && used[r] < cnt[r] ? 1 : 0), 0);
+  };
+  const restCombo = x => { const rest = hand.filter(c => !x.cs.includes(c)); return rest.length ? classify(rest) : null; };
+  const power = x => x.p.k === 'killer' || x.p.k === 'bomb' || x.cs.some(c => rk(c) === TWO);
+
+  // Two moves from winning: play an unbeatable one now, then dump the rest
+  const finisher = legal.find(x => restCombo(x) && boss(x));
+  if (finisher) return finisher.cs;
+
+  const danger = minOpp <= 2;                                  // someone is about to go out
+  const late = minOpp <= 4 || hand.length <= 5;
+  let pool = (late || danger) ? legal : legal.filter(x => !power(x));
+  if (!pool.length) {
+    if (t && Math.random() < 0.6) return null;                 // early on, save the big stuff
+    pool = legal;
+  }
+
+  const score = x => {
+    const top = val(topCard(x.p)), len = x.cs.length;
+    let s;
+    if (t) {                                                   // ---- following ----
+      if (danger) s = boss(x) ? -1000 + top : -top;            // stop them: take control or play your strongest
+      else s = top + (power(x) ? 60 : 0) + breaks(x) * 14;     // otherwise beat it as cheaply as possible
+    } else {                                                   // ---- leading ----
+      const risky = !boss(x) && counts.some(n => n <= 2 && len <= n);   // they could follow and go out
+      if (risky) s = 400 - top * 3;                            // if forced, lead the highest of the risky stuff
+      else {
+        s = top * 2 - len * 9 + (power(x) ? 120 : 0) + breaks(x) * 16;
+        if (len > maxOpp) s -= 150;                            // nobody has enough cards to follow
+        if (late && boss(x)) s -= 40;                          // keep control near the end
+      }
+    }
+    if (restCombo(x)) s -= 80;                                 // leaves a hand you can dump in one go
+    return s;
+  };
+  pool.sort((a, b) => score(a) - score(b));
+  // Near the end, don't waste a big play following when passing keeps you safe
+  return pool[0].cs;
+}
+
+// MEDIUM (and EASY with sloppy=true): the simpler CPU
+function botChooseSimple(g, id, sloppy) {
+  const hand = g.hands[id], t = g.table;
   const opp = Math.min(...active(g).filter(x => x !== id).map(x => g.hands[x].length));
   const legal = allPlays(hand).map(cs => ({ cs, p: classify(cs) })).filter(({ cs, p }) => {
     if (!p) return false;
@@ -623,6 +701,11 @@ function botChoose(g, id) {
   if (!legal.length) return null;
   const win = legal.find(x => x.cs.length === hand.length);
   if (win) return win.cs;                                     // can go out? do it
+  if (sloppy) {                                               // EASY: misses plays, wastes cards, ignores who's close
+    if (t && Math.random() < 0.35) return null;
+    const pick = legal.filter(x => x.p.k !== 'killer' && x.p.k !== 'bomb');
+    if (pick.length && Math.random() < 0.5) return pick[Math.floor(Math.random() * pick.length)].cs;
+  }
   const power = x => x.p.k === 'killer' || x.p.k === 'bomb' || x.cs.some(c => rk(c) === TWO);
   const urgent = opp <= 3 || hand.length <= 4;                // someone's close: stop holding back
   let pool = urgent ? legal : legal.filter(x => !power(x));
@@ -646,7 +729,8 @@ function botMove(id) {
     }
     if (g.phase !== 'play' || g.turn !== id) return 'x';
     let cs = null;
-    try { cs = botChoose(g, id); } catch (e) { cs = null; }
+    const lvl = g.bots[id] === true ? 'hard' : g.bots[id];
+    try { cs = lvl === 'easy' ? botChooseSimple(g, id, true) : lvl === 'medium' ? botChooseSimple(g, id, false) : botChoose(g, id); } catch (e) { cs = null; }
     if (!cs && !g.table) cs = [g.hands[id].find(c => !g.firstLead || val(c) === 0) || g.hands[id][0]];   // leading: must play something
     let err = cs ? doPlay(g, id, cs) : doPass(g, id);
     if (err && g.table) err = doPass(g, id);                       // play failed? just pass
@@ -723,7 +807,7 @@ function renderHome() {
     <div id="msg" class="msg"></div>
     <div class="panel hof">
       <h3>🏆 Hall of Fame</h3>
-      <p class="small" style="margin:0 0 8px">Times someone won 3 in a row (3+ player games only). A 6-win streak counts twice.</p>
+      <p class="small" style="margin:0 0 8px">Times someone won 3 in a row in games with 4+ real people. A 6-win streak counts twice.</p>
       <div id="hof"><p class="small" style="margin:0">Loading…</p></div>
     </div>`;
   loadHall();
@@ -788,7 +872,8 @@ function renderLobby() {
     <p class="small" style="text-align:center">Seats go left in this order</p>
     <div class="players">${ps.map(([id, p]) => `<div class="pl"><div class="n">${esc(p.name)}</div>${id === room.host ? '<div class="small">host</div>' : ''}${host && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`).join('')}</div>
     <div style="margin-top:20px">
-      ${host ? `<button class="full sec" onclick="addCpu()" ${ps.filter(p => p[1].bot).length >= 2 || ps.length >= 8 ? 'disabled' : ''}>🤖 Add CPU player (${ps.filter(p => p[1].bot).length}/2)</button><button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
+      ${host ? `<div class="lvl">CPU level: ${['easy', 'medium', 'hard'].map(l => `<button class="${cpuLevel === l ? 'on' : 'sec'}" onclick="setLevel('${l}')">${l[0].toUpperCase() + l.slice(1)}</button>`).join('')}</div>
+      <button class="full sec" onclick="addCpu()" ${ps.filter(p => p[1].bot).length >= 2 || ps.length >= 8 ? 'disabled' : ''}>🤖 Add ${cpuLevel[0].toUpperCase() + cpuLevel.slice(1)} CPU (${ps.filter(p => p[1].bot).length}/2)</button><button class="full" onclick="startGame()" ${ps.length < 2 ? 'disabled' : ''}>Start game (${ps.length} players)</button>`
              : `<p style="text-align:center">Waiting for the host to start…</p>`}
       <button class="full sec" onclick="leaveRoom()">Leave</button>
     </div>
@@ -859,9 +944,9 @@ function renderGame(g) {
     const tw = g.tally[w] || {}, tl = g.tally[l] || {};
     const info = g.endInfo || {}, nW = esc(g.names[w]), nL = esc(g.names[l]);
     let winNote = '', lossNote = '';
-    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${info.hall ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(Hall of Fame needs 3+ real people, and CPUs don't count)`}</div>`;
+    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥🔥🔥 ${sw.w} WINS IN A ROW! 🔥🔥🔥<br>${info.hall ? `${nW} is going on the Hall of Fame${sw.w > 3 ? ' AGAIN' : ''}! 🏆` : `(Hall of Fame needs 4+ real people, and CPUs don't count)`}</div>`;
     else if (sw.w > 3) winNote = `<div class="note">🔥 ${nW} is still on a streak: <b>${sw.w} wins in a row</b></div>`;
-    else if (sw.w === 2) winNote = `<div class="note">🔥 ${nW} has won 2 in a row. One more for the Hall of Fame!</div>`;
+    else if (sw.w === 2) winNote = `<div class="note">🔥 ${nW} has won 2 in a row. ${(info.players || 0) >= 4 ? 'One more for the Hall of Fame!' : 'One more for 3 in a row!'}</div>`;
     if (sl.l && sl.l % 3 === 0) lossNote = `<div class="big3 loss">💀💀💀 ${sl.l} LOSSES IN A ROW! 💀💀💀<br>${nL}: PUNISHMENT TIME!</div>`;
     else if (sl.l > 3) lossNote = `<div class="note">💀 ${nL} is still on a losing streak: <b>${sl.l} losses in a row</b></div>`;
     else if (sl.l === 2) lossNote = `<div class="note">💀 ${nL} has lost 2 in a row. One more and it's punishment time…</div>`;
