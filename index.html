@@ -89,6 +89,28 @@ button.danger{background:#c94a4a;color:#fff}
 .big3.loss{background:#c94a4a;color:#fff}
 .note{margin:6px 0;font-size:15px}
 .grp{display:flex;flex-wrap:wrap;justify-content:center;max-width:100%;gap:2px;padding:14px 4px 4px;border:2px dashed #ffd23f;border-radius:10px}
+/* ---- compact game layout ---- */
+.pl{padding:4px 8px;min-width:0;font-size:13px;line-height:1.25}
+.pl .kick{font-size:11px;padding:1px 6px;margin:0 0 0 2px;border-radius:6px;vertical-align:middle}
+.tally{font-size:11px;margin-top:1px}
+.up{font-size:22px;margin:8px 0 0}
+.up.mine{font-size:26px}
+.table{min-height:116px;margin:8px 0 4px;padding:10px}
+.table .card{width:48px;height:70px;font-size:20px}
+.log{font-size:13px;min-height:16px}
+.msg{min-height:18px}
+.hand{margin-top:2px;padding-top:0}
+.handhead{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.handhead .minibtns{margin:0;gap:5px}
+.minibtns button{font-size:12px;padding:6px 9px}
+.cards{gap:3px}
+#hand .card{width:38px;height:56px;font-size:15px;border-width:1.5px}
+.card.sel{transform:translateY(-8px)}
+.grp{padding:8px 3px 3px}
+.smallrow button{font-size:13px;padding:8px 12px;margin:0}
+.mainbtns{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#0b4d2cee;box-shadow:0 -4px 14px #0006;max-width:700px;margin:0 auto}
+.mainbtns button{font-size:20px;padding:14px 10px;margin:0}
+body.hasbar{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 </style>
 </head>
 <body>
@@ -740,6 +762,7 @@ function listen() {
 }
 
 function render() {
+  document.body.classList.remove('hasbar');
   if (!room) return renderHome();
   if (!room.game) return renderLobby();
   renderGame(norm(JSON.parse(JSON.stringify(room.game))));
@@ -804,7 +827,7 @@ function renderGame(g) {
     const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${g.hands[id].length} cards`;
     const t = g.tally[id] || {};
     return `<div class="pl ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''}">
-      <div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}</div><div class="tally">🏆${t.w || 0} · 💀${t.l || 0}</div>${badge ? `<div class="small">${badge}</div>` : ''}${room.host === me && id !== me ? `<button class="kick" onclick="kick('${id}')">Kick</button>` : ''}</div>`;
+      <div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div>${status}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
 
   let center;
@@ -856,21 +879,21 @@ function renderGame(g) {
   const handSection = spectator
     ? `<div class="hand" style="text-align:center"><h2>🪑 You're in the chair</h2><p class="small">You're watching this game. You'll be dealt in when the next game starts.</p></div>`
     : `<div class="hand">
-      <div class="small" style="text-align:center;margin-bottom:8px">${myTurn ? '<b style="color:#ffd23f">Your turn</b>' : 'Your hand'} · ${hand.length} cards</div>
-      <div class="cards" id="hand">${groups.map((gr, i) => `<div class="grp" data-g="${i}">${gr.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>`).join('')}${loose.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
+      <div class="handhead"><span class="small">${myTurn ? '<b style="color:#ffd23f;opacity:1">Your turn</b>' : 'Your hand'} · ${hand.length}</span>
       <div class="minibtns">
-        <button class="sec" onclick="groupSel()" ${sel.size >= 2 ? '' : 'disabled'}>Group selected</button>
-        <button class="sec" onclick="ungroupSel()" ${[...sel].some(c => grouped.has(c)) ? '' : 'disabled'}>Ungroup selected</button>
+        <button class="sec" onclick="groupSel()" ${sel.size >= 2 ? '' : 'disabled'}>Group</button>
+        <button class="sec" onclick="ungroupSel()" ${[...sel].some(c => grouped.has(c)) ? '' : 'disabled'}>Ungroup</button>
         <button class="sec" onclick="ungroupAll()" ${groups.length ? '' : 'disabled'}>Ungroup all</button>
         <button class="sec" onclick="sel.clear();render()" ${sel.size ? '' : 'disabled'}>Clear</button>
-      </div>
-      <p class="small" style="text-align:center;margin:4px 0 0">Tap a group's dashed border to select the whole group</p>
+      </div></div>
+      <div class="cards" id="hand">${groups.map((gr, i) => `<div class="grp" data-g="${i}">${gr.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>`).join('')}${loose.map(c => cardHTML(c, sel.has(c) ? 'sel' : '')).join('')}</div>
     </div>
     <div class="mainbtns">
       <button class="passbtn" onclick="pass()" ${myTurn && g.table ? '' : 'disabled'}>PASS</button>
       <button class="playbtn" onclick="playSel()" ${myTurn && sel.size ? '' : 'disabled'}>PLAY</button>
     </div>`;
 
+  document.body.classList.toggle('hasbar', !spectator);
   $('#app').innerHTML = `
     <div class="players">${playersBar}</div>
     ${banner}
@@ -878,7 +901,7 @@ function renderGame(g) {
     <div class="log">${esc(g.log || '')}</div>
     <div id="msg" class="msg"></div>
     ${handSection}
-    <div class="row" style="margin-top:24px;justify-content:center">
+    <div class="row smallrow" style="margin-top:14px;justify-content:center">
       ${room.host === me ? `<button class="danger" onclick="endGame()">End game</button>` : `<button class="danger" onclick="dropOut()">${spectator ? 'Leave the chair' : 'Drop out'}</button>`}
       ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
     </div>
