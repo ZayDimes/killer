@@ -10,6 +10,7 @@
 <title>Killer</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:#0b4d2c}
 html,body{overflow-x:hidden;max-width:100%}
 body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:#0b4d2c;color:#fff;min-height:100vh}
 .screen{max-width:700px;margin:0 auto;padding:16px}
@@ -43,9 +44,9 @@ button:disabled{opacity:.35}
 #fx{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000;text-align:center;z-index:50;padding:20px}
 #fx.big{background:#000d;z-index:70}
 #fx .sub{font-size:28px;color:#fff;margin-top:8px}
-#flash{position:fixed;inset:0;pointer-events:none;background:#ffd23f;opacity:0;z-index:40}
-#flash.on{animation:flash 1.2s ease-out}
-@keyframes flash{0%{opacity:0}15%{opacity:.55}40%{opacity:.1}60%{opacity:.45}100%{opacity:0}}
+#flash{position:fixed;inset:0;pointer-events:none;background:transparent;z-index:40;display:none}
+#flash.on{display:block;animation:flash 1.2s ease-out forwards}
+@keyframes flash{0%{background:#ffd23f00}15%{background:#ffd23f8c}40%{background:#ffd23f1a}60%{background:#ffd23f73}100%{background:#ffd23f00}}
 body.shake{animation:shake .7s}
 @keyframes shake{0%,100%{transform:translate(0,0)}10%{transform:translate(-14px,6px)}20%{transform:translate(12px,-8px)}30%{transform:translate(-10px,10px)}40%{transform:translate(14px,-4px)}50%{transform:translate(-8px,8px)}60%{transform:translate(10px,-10px)}70%{transform:translate(-6px,4px)}80%{transform:translate(6px,-6px)}90%{transform:translate(-3px,3px)}}
 .up{text-align:center;font-size:30px;font-weight:900;margin:10px 0 0;letter-spacing:1px}
@@ -95,11 +96,13 @@ button.danger{background:#c94a4a;color:#fff}
 .pl{padding:4px 8px;min-width:0;font-size:13px;line-height:1.25}
 .pl .kick{font-size:11px;padding:1px 6px;margin:0 0 0 2px;border-radius:6px;vertical-align:middle}
 .tally{font-size:11px;margin-top:1px}
-.up{font-size:22px;margin:8px 0 0}
+.up{font-size:20px;margin:2px 0 0}
 .up.mine{font-size:26px}
 .table{min-height:116px;margin:8px 0 4px;padding:10px}
 .table .card{width:var(--cw,48px);height:calc(var(--cw,48px) * 1.45);font-size:calc(var(--cw,48px) * .42)}
 .table .cards.onerow{flex-wrap:nowrap}
+.mid>.cards .card{width:var(--cw,44px);height:calc(var(--cw,44px) * 1.45);font-size:calc(var(--cw,44px) * .42);box-shadow:0 3px 8px #0006}
+.cards.onerow{flex-wrap:nowrap}
 .log{font-size:13px;min-height:16px}
 .msg{min-height:18px}
 .hand{margin-top:2px;padding-top:0}
@@ -144,6 +147,27 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .inv{font-size:14px;padding:7px 14px;margin:0}
 #rules h4{margin:10px 0 2px;font-size:13px;color:#ffd23f;text-transform:uppercase;letter-spacing:1px}
 #rules ul{margin:2px 0 4px}
+#rules li.rk{list-style:none;margin:6px 0 10px -20px;font-size:15px;font-weight:700}
+.chips{display:flex;gap:3px;justify-content:center;align-items:center;margin-top:6px}
+.chip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:30px;background:#fff;color:#111;border-radius:5px;font-style:normal;font-weight:900;font-size:14px;box-shadow:0 2px 4px #0006}
+.chip.red{color:#d11}
+.chip.top{box-shadow:0 0 0 2px #ffd23f,0 2px 4px #0006}
+.suits .chip{width:34px;height:42px;font-size:24px}
+.suits b{font-size:18px;opacity:.7;margin:0 4px}
+.lohi{display:flex;justify-content:space-between;font-size:11px;color:#ffd23f;letter-spacing:1px;padding:2px 10px 0}
+.ring{position:relative;height:var(--rh,300px);margin:16px 0 4px}
+.felt{position:absolute;inset:22px 4px;border-radius:50%;background:radial-gradient(ellipse at center,#17804a 0%,#0f6239 60%,#0a4a2a 100%);border:6px solid #6b3e1f;box-shadow:inset 0 0 0 2px #ffd23f55,0 6px 18px #0008}
+.mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:2}
+.mid .justby{margin:0;font-size:14px}
+.before{display:flex;align-items:center;gap:4px;opacity:.65;white-space:nowrap;font-size:11px}
+.before .card{width:var(--mw,22px);height:calc(var(--mw,22px) * 1.45);font-size:calc(var(--mw,22px) * .48);border-width:1px;box-shadow:none}
+.seat{position:absolute;width:88px;transform:translate(-50%,-50%);background:#0d3d24;border:1px solid #ffffff22;border-radius:10px;padding:3px 4px;text-align:center;font-size:11px;line-height:1.2;z-index:3;box-shadow:0 3px 8px #0007}
+.seat .n{font-weight:800;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat.turn{background:#ffd23f;color:#222;border-color:#ffd23f;box-shadow:0 0 12px #ffd23faa}
+.seat.out{opacity:.5}
+.seat.champ{box-shadow:0 0 0 2px #ffd23f}
+.seat .crown{top:-16px;font-size:18px}
+.seat .kick{font-size:10px;padding:0 5px;margin:0 0 0 2px;border-radius:5px}
 .apc{text-align:center;font-weight:800;color:#ffd23f;font-size:15px}
 .a2hs summary{font-weight:700;cursor:pointer;font-size:16px}
 .a2hs ol{margin:8px 0 2px;padding-left:22px;line-height:1.6;font-size:15px}
@@ -171,7 +195,11 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
   <h4>Basics</h4>
   <ul>
     <li>Get rid of all your cards first. Last one holding cards <b>loses</b>.</li>
-    <li>Ranks: 3 (low) → 10, J, Q, K, A, <b>2 (high)</b>. Suits: ♠ &lt; ♣ &lt; ♦ &lt; ♥.</li>
+    <li class="rk">Ranks, low → high
+      <div class="chips"><i class="chip">3</i><i class="chip">4</i><i class="chip">5</i><i class="chip">6</i><i class="chip">7</i><i class="chip">8</i><i class="chip">9</i><i class="chip">10</i><i class="chip">J</i><i class="chip">Q</i><i class="chip">K</i><i class="chip">A</i><i class="chip top">2</i></div>
+      <div class="lohi"><span>LOW</span><span>HIGH</span></div></li>
+    <li class="rk">Suits, low → high
+      <div class="chips suits"><i class="chip">♠</i><b>&lt;</b><i class="chip">♣</i><b>&lt;</b><i class="chip red">♦</i><b>&lt;</b><i class="chip red">♥</i></div></li>
     <li>Below 10, same rank can go on same rank. From 10 up, same rank needs a higher suit.</li>
   </ul>
   <h4>Starting</h4>
@@ -193,7 +221,6 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
   </ul>
   <h4>Extras</h4>
   <ul>
-    <li>9 on a 6 = <b>NICE</b>.</li>
     <li>3 losses in a row = punishment.</li>
     <li>3 wins in a row = Hall of Fame (4+ real people; CPU wins don't count).</li>
     <li>🤖 Host can add up to 2 CPUs (Easy, Medium, Hard). They leave once 3+ real people are playing.</li>
@@ -911,11 +938,8 @@ function saveName(v) { v = v.trim(); if (v) { localStorage.setItem('killer_name'
 
 // ---------- Rendering ----------
 // Shrink table cards so a long play (bombs, runs) always fits on one row
-function tableCardW(n, underN) {
-  const space = Math.min(window.innerWidth || 390, 700) - 64;
-  let w = Math.floor((space - (underN ? underN * 33 + 24 : 0)) / n) - 3;
-  if (w < 30 && underN) w = Math.floor(space / n) - 3;          // not enough space: "Before" wraps to its own line
-  return Math.max(22, Math.min(48, w));
+function tableCardW(n, space) {
+  return Math.max(16, Math.min(44, Math.floor(space / n) - 3));
 }
 function miniPlay(pl, title) {
   return `<div class="prevplay"><div class="small">${title}</div><div class="cards">${arr(pl.c).map(c => cardHTML(c, 'mini')).join('')}</div><div class="small">${esc(roomNames[pl.by] || '')}</div></div>`;
@@ -1093,31 +1117,43 @@ function renderGame(g) {
   [...sel].forEach(c => { if (!hand.includes(c)) sel.delete(c); });
   const myTurn = g.turn === me && g.phase === 'play';
 
-  const playersBar = g.order.map(id => {
+  // Round table: you at the bottom, everyone else around it in play order (left is law → clockwise)
+  const N = g.order.length, base = g.order.includes(me) ? g.order.indexOf(me) : 0;
+  const ringW = Math.min(window.innerWidth || 390, 700) - 32;
+  const ringH = N >= 6 ? 330 : 300;
+  const seats = g.order.map((id, i) => {
+    const k = (i - base + N) % N, a = (90 + 360 * k / N) * Math.PI / 180;
+    const cx = Math.cos(a).toFixed(3), cy = Math.sin(a).toFixed(3);
     const s = g.streaks[id] || {}, place = g.finished.indexOf(id);
     let badge = '';
-    if ((s.w || 0) >= 3) badge += ` 🔥${s.w}W`;
-    if ((s.l || 0) >= 3) badge += ` 💀${s.l}L`;
+    if ((s.w || 0) >= 3) badge += ` 🔥${s.w}`;
+    if ((s.l || 0) >= 3) badge += ` 💀${s.l}`;
     const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${g.hands[id].length} cards`;
     const t = g.tally[id] || {};
-    return `<div class="pl ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}">
-      ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div>${status}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
+    return `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="left:calc(50% + (50% - 46px) * ${cx});top:calc(50% + (50% - 26px) * ${cy})">
+      ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
+  const space = N >= 3 ? ringW - 2 * 94 : ringW - 70;          // room left in the middle of the table
+  const before = (pl, title) => {
+    const c = arr(pl.c), mw = Math.max(14, Math.min(22, Math.floor((space - 80) / c.length) - 2));
+    return `<div class="before" style="--mw:${mw}px"><span>${title}</span><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div><span>${esc(g.names[pl.by] || '')}</span></div>`;
+  };
 
   let center;
   if (g.phase === 'claim') {
     center = g.claimers.includes(me)
-      ? `<button onclick="claim()" style="font-size:24px">Claim 3♠</button>`
+      ? `<button onclick="claim()" style="font-size:20px">Claim 3♠</button>`
       : `<div>Waiting for someone to claim the 3♠…</div>`;
   } else if (g.table) {
     center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
-      <div class="tablerow">${g.under ? miniPlay(g.under, 'Before') : ''}
-        <div><div class="small" style="text-align:center;margin-bottom:6px;opacity:.85">ON THE TABLE</div><div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, g.under ? arr(g.under.c).length : 0)}px">${g.table.c.map(c => cardHTML(c)).join('')}</div>
-        <div class="justby">played by <span>${esc(g.names[g.table.by])}</span></div></div></div>`;
+      ${g.under ? before(g.under, 'Before') : ''}
+      <div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, space)}px">${g.table.c.map(c => cardHTML(c)).join('')}</div>
+      <div class="justby">by <span>${esc(g.names[g.table.by])}</span></div>`;
   } else {
-    center = `${g.prev && g.phase !== 'over' ? miniPlay(g.prev, 'Last round ended on') : ''}
-      <div>${g.phase === 'over' ? 'Game over' : esc(g.names[g.turn]) + ' leads — play anything'}</div>`;
+    center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
+      <div style="max-width:${space}px">${g.phase === 'over' ? 'Game over' : '<b>' + esc(g.names[g.turn]) + '</b> leads<br>play anything'}</div>`;
   }
+  const tableHTML = `<div class="ring" style="--rh:${ringH}px"><div class="felt"></div><div class="mid" style="width:${space}px">${center}</div>${seats}</div>`;
 
   const chairNames = Object.values(g.waiting);
   let over = '';
@@ -1169,10 +1205,9 @@ function renderGame(g) {
 
   document.body.classList.toggle('hasbar', !spectator);
   $('#app').innerHTML = `
-    <div class="players ${g.order.includes(g.champ) ? 'crowned' : ''}">${playersBar}</div>
+    ${tableHTML}
     ${banner}
     <div id="apcount" class="apc"></div>
-    <div class="table">${center}</div>
     <div class="log">${esc(g.log || '')}</div>
     <div id="msg" class="msg"></div>
     ${handSection}
@@ -1232,10 +1267,10 @@ function showFx(type, x) {
   let fs = f.size;
   while (big.scrollWidth > n.clientWidth - 30 && fs > 18) { fs -= 3; big.style.fontSize = fs + 'px'; }   // always one line
   n.animate([{ transform: 'scale(.85)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 250 });
-  if (f.backdrop) { const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); }
+  if (f.backdrop) { const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); setTimeout(() => fl.classList.remove('on'), 1300); }
   if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
-  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
+  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; n.classList.remove('big'); document.body.classList.remove('shake'); }, f.ms);
 }
 // Flash + ding on your turn: right away, again after 20s, then every 10s. Tapping a card also pushes the next one to 20s.
 let nagTimer = null;
@@ -1331,6 +1366,7 @@ function sfx(n) {
 function turnFlash() {
   sfx('turn');
   const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  clearTimeout(turnFlash.t); turnFlash.t = setTimeout(() => f.classList.remove('on'), 1300);
   if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
 }
 
