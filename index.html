@@ -998,7 +998,8 @@ function renderGame(g) {
   // Flash when it becomes your turn
   const turnKey = g.phase === 'play' ? g.turn + '|' + (g.log || '') : '';
   if (turnKey !== lastTurnKey) {
-    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) turnFlash();
+    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) { turnFlash(); startNag(turnKey); }
+    else stopNag();
     lastTurnKey = turnKey;
   }
 
@@ -1116,6 +1117,7 @@ function renderGame(g) {
   driveBots(g);
   if (spectator) return;
   $('#hand').onclick = e => {
+    stopNag();                                                  // they're paying attention now
     const el = e.target.closest('.card');
     if (!el) { const gEl = e.target.closest('.grp'); if (gEl) selectGroup(+gEl.dataset.g); return; }
     const c = +el.dataset.c;
@@ -1142,6 +1144,23 @@ function showFx(type) {
   if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
   clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
+}
+// Keep flashing until they act: 5s, 4s, 3s, 2s, then every 1.5s
+let nagTimer = null;
+function stopNag() { clearTimeout(nagTimer); nagTimer = null; }
+function startNag(key) {
+  stopNag();
+  let delay = 5000;
+  const step = () => {
+    nagTimer = setTimeout(() => {
+      const g = room && room.game;
+      if (!g || g.phase !== 'play' || g.turn !== me || (g.turn + '|' + (g.log || '')) !== key) return stopNag();
+      turnFlash();
+      delay = Math.max(1500, delay - 1000);
+      step();
+    }, delay);
+  };
+  step();
 }
 function turnFlash() {
   const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
