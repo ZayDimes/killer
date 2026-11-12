@@ -119,6 +119,9 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .lvl{display:flex;gap:6px;align-items:center;justify-content:center;font-size:14px;margin-bottom:4px}
 .lvl button{font-size:14px;padding:8px 14px;margin:0}
 .lvl button.on{background:#ffd23f;color:#222}
+.onrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffffff18;font-size:15px}
+.onrow .small{margin-left:4px}
+.inv{font-size:14px;padding:7px 14px;margin:0}
 </style>
 </head>
 <body>
@@ -149,7 +152,7 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
     <button>Send</button>
   </form>
 </div></div>
-<div id="modal"><div class="box"><h2 id="modaltxt"></h2><div class="btns"><button class="sec" onclick="closeModal()">Cancel</button><button id="modalyes" class="danger">Yes</button></div></div></div>
+<div id="modal"><div class="box"><h2 id="modaltxt"></h2><div class="btns"><button id="modalno" class="sec" onclick="closeModal()">Cancel</button><button id="modalyes" class="danger">Yes</button></div></div></div>
 <div id="fx"></div>
 <div id="flash"></div>
 <script>window.onerror=function(m,s,l){document.body.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:16px;font-size:18px">Error: '+m+' (line '+l+')</p>')}</script>
@@ -375,6 +378,9 @@ function createRoom() {
 function joinRoom() {
   const name = $('#name').value.trim(); if (!name) return flash('Enter your name');
   const code = $('#code').value.trim().toUpperCase(); if (code.length !== 4) return flash('Enter the 4-letter code');
+  joinCode(name, code);
+}
+function joinCode(name, code) {
   localStorage.setItem('killer_name', name);
   db.ref('rooms/' + code).get().then(s => {
     const r = s.val();
@@ -517,9 +523,13 @@ function nextGame() {
   }, () => dropped.forEach(id => db.ref('rooms/' + roomCode + '/players/' + id).remove()));
 }
 
-function confirmBox(text, onYes) {
+function confirmBox(text, onYes, yesLabel, noLabel, onNo) {
   $('#modaltxt').textContent = text;
+  $('#modalyes').textContent = yesLabel || 'Yes';
+  $('#modalno').textContent = noLabel || 'Cancel';
+  $('#modalyes').className = yesLabel ? '' : 'danger';
   $('#modalyes').onclick = () => { closeModal(); onYes(); };
+  $('#modalno').onclick = () => { closeModal(); if (onNo) onNo(); };
   $('#modal').style.display = 'flex';
 }
 function closeModal() { $('#modal').style.display = 'none'; }
@@ -773,6 +783,57 @@ function shareCode() {
   navigator.share({ text: 'Join my Killer game! Room code: ' + roomCode + '\n' + location.origin + location.pathname }).catch(() => {});
 }
 
+// ---------- Who's online + invites ----------
+let online = {}, invited = new Set(), lastPres = '';
+const onRef = () => db.ref('rooms/_online/' + me);
+function updatePresence(force) {
+  const name = localStorage.getItem('killer_name');
+  if (!name || !db) return;
+  const st = { name, room: roomCode || null, inGame: !!(room && room.game) };
+  const key = JSON.stringify(st);
+  if (!force && key === lastPres) return;
+  lastPres = key;
+  onRef().set({ ...st, t: Date.now() });
+  try { onRef().onDisconnect().remove(); } catch (e) {}
+}
+setInterval(() => updatePresence(true), 30000);             // heartbeat
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updatePresence(true); });
+function paintOnline() {
+  const box = $('#onl'); if (!box) return;
+  const now = Date.now();
+  const list = Object.entries(online).filter(([id, o]) => id !== me && o && o.name && now - (o.t || 0) < 90000)
+    .sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const inLobby = room && !room.game && roomCode;
+  if (!list.length) { box.innerHTML = '<p class="small" style="margin:0">Nobody else is on right now.</p>'; return; }
+  box.innerHTML = list.map(([id, o]) => {
+    const here = o.room && o.room === roomCode;
+    const status = here ? 'in this room' : o.inGame ? 'playing a game' : o.room ? 'in a lobby' : 'on the home screen';
+    const btn = roomCode && !here ? (invited.has(id) ? '<span class="small">Invited ✓</span>' : `<button class="sec inv" onclick="invite('${id}')">Invite</button>`) : '';
+    return `<div class="onrow"><span>🟢 <b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
+  }).join('');
+}
+function invite(id) {
+  const name = (room && room.players && room.players[me] && room.players[me].name) || localStorage.getItem('killer_name') || 'Someone';
+  db.ref('rooms/_invites/' + id).set({ from: name, room: roomCode, t: Date.now() });
+  invited.add(id); paintOnline(); flash('Invite sent ✅');
+}
+function listenOnline() {
+  db.ref('rooms/_online').on('value', s => { online = s.val() || {}; paintOnline(); });
+  db.ref('rooms/_invites/' + me).on('value', s => {
+    const inv = s.val();
+    if (!inv || Date.now() - (inv.t || 0) > 120000 || inv.room === roomCode) return;
+    db.ref('rooms/_invites/' + me).remove();
+    confirmBox(`${inv.from} invited you to their game (room ${inv.room})`, () => {
+      const name = localStorage.getItem('killer_name') || ($('#name') && $('#name').value.trim());
+      if (!name) return flash('Enter your name first');
+      if (room && room.game && arr(room.game.order).includes(me)) act(g => { removeFromGame(g, me, 'left the game'); });
+      if (roomCode) { db.ref('rooms/' + roomCode + '/players/' + me).remove(); leaveRoom(); }
+      joinCode(name, inv.room);
+    }, 'Join', 'No thanks');
+  });
+}
+function saveName(v) { v = v.trim(); if (v) { localStorage.setItem('killer_name', v); updatePresence(); } }
+
 // ---------- Rendering ----------
 function miniPlay(pl, title) {
   return `<div class="prevplay"><div class="small">${title}</div><div class="cards">${arr(pl.c).map(c => cardHTML(c, 'mini')).join('')}</div><div class="small">${esc(roomNames[pl.by] || '')}</div></div>`;
@@ -788,7 +849,7 @@ function renderHome() {
     <p class="small" style="text-align:center">Play with friends anywhere</p>
     <div class="panel">
       <h3>1. Your name</h3>
-      <input id="name" placeholder="Your name" maxlength="14" value="${esc(localStorage.getItem('killer_name') || '')}">
+      <input id="name" placeholder="Your name" maxlength="14" value="${esc(localStorage.getItem('killer_name') || '')}" onchange="saveName(this.value)">
     </div>
     <div class="panel">
       <h3>🆕 Host a new game</h3>
@@ -805,12 +866,18 @@ function renderHome() {
       </div>
     </div>
     <div id="msg" class="msg"></div>
+    <div class="panel">
+      <h3>🟢 Online now</h3>
+      <p class="small" style="margin:0 0 6px">Friends with Killer open. When you're in a lobby you can invite them.</p>
+      <div id="onl"><p class="small" style="margin:0">Loading…</p></div>
+    </div>
     <div class="panel hof">
       <h3>🏆 Hall of Fame</h3>
       <p class="small" style="margin:0 0 8px">Times someone won 3 in a row in games with 4+ real people. A 6-win streak counts twice.</p>
       <div id="hof"><p class="small" style="margin:0">Loading…</p></div>
     </div>`;
   loadHall();
+  setTimeout(() => { updatePresence(); paintOnline(); }, 0);
 }
 
 // ---------- Chat ----------
@@ -852,6 +919,7 @@ function listen() {
 }
 
 function render() {
+  setTimeout(() => { updatePresence(); paintOnline(); }, 0);
   document.body.classList.remove('hasbar');
   if (!room) return renderHome();
   if (!room.game) return renderLobby();
@@ -877,7 +945,11 @@ function renderLobby() {
              : `<p style="text-align:center">Waiting for the host to start…</p>`}
       <button class="full sec" onclick="leaveRoom()">Leave</button>
     </div>
-    <div id="msg" class="msg"></div>`;
+    <div id="msg" class="msg"></div>
+    <div class="panel">
+      <h3>🟢 Invite friends who are online</h3>
+      <div id="onl"><p class="small" style="margin:0">Loading…</p></div>
+    </div>`;
 }
 
 function renderGame(g) {
@@ -1041,6 +1113,7 @@ function turnFlash() {
 }
 
 // ---------- Boot (auto-rejoin after a disconnect) ----------
+try { listenOnline(); } catch (e) {}
 if (roomCode) {
   db.ref('rooms/' + roomCode).get().then(s => {
     const r = s.val();
