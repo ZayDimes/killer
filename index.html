@@ -130,6 +130,12 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .crown{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-size:20px;line-height:1;filter:drop-shadow(0 2px 2px #0008)}
 .credit{text-align:center;font-size:13px;opacity:.6;margin:18px 0 4px;letter-spacing:.5px}
 .credit b{color:#ffd23f;opacity:1}
+.tip{text-align:center;font-size:12px;color:#ffffff73;margin:0 0 20px}
+.tip a,.tip summary{color:inherit}
+.tip details{display:inline}
+.tip summary{display:inline;list-style:none;text-decoration:underline;cursor:pointer}
+.tip summary::-webkit-details-marker{display:none}
+.tip img{display:block;width:130px;margin:8px auto 0;border-radius:8px;background:#fff;padding:5px}
 .lvl{display:flex;gap:6px;align-items:center;justify-content:center;font-size:14px;margin-bottom:4px}
 .lvl button{font-size:14px;padding:8px 14px;margin:0}
 .lvl button.on{background:#ffd23f;color:#222}
@@ -977,7 +983,8 @@ function renderHome() {
       <p class="small" style="margin:0 0 8px">Times someone won 3 in a row in games with 4+ real people. A 6-win streak counts twice.</p>
       <div id="hof"><p class="small" style="margin:0">Loading…</p></div>
     </div>
-    <p class="credit">♠ Created by <b>Isaiah Allen</b> ♥</p>`;
+    <p class="credit">♠ Created by <b>Isaiah Allen</b> ♥</p>
+    <div class="tip">Enjoying Killer? <a href="https://venmo.com/u/Zay_Allen" target="_blank" rel="noopener">Tip on Venmo</a> · <details><summary>QR</summary><img alt="Venmo @Zay_Allen" src="data:image/png;base64,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"></details></div>`;
   loadHall();
   setTimeout(() => { updatePresence(); paintOnline(); }, 0);
 }
@@ -1065,7 +1072,7 @@ function renderGame(g) {
   // Flash when it becomes your turn
   const turnKey = g.phase === 'play' ? g.turn + '|' + (g.log || '') : '';
   if (turnKey !== lastTurnKey) {
-    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) { turnFlash(); startNag(turnKey); }
+    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) { turnFlash(); startNag(turnKey, 20000); }   // 1st reminder right away, 2nd after 20s, then every 10s
     else stopNag();
     lastTurnKey = turnKey;
   }
@@ -1230,7 +1237,7 @@ function showFx(type, x) {
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
   clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
 }
-// Flash + ding every 10s on your turn. Tapping a card pushes the next one to 20s, then back to every 10s.
+// Flash + ding on your turn: right away, again after 20s, then every 10s. Tapping a card also pushes the next one to 20s.
 let nagTimer = null;
 function stopNag() { clearTimeout(nagTimer); nagTimer = null; }
 function startNag(key, first) {
