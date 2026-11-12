@@ -119,7 +119,8 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 #rules details{padding:6px 12px;border-radius:10px;background:#00000020}
 #rules summary{font-size:13px;font-weight:600;opacity:.75}
 #rules ul{font-size:13px}
-.pl.champ{position:relative;margin-top:14px;box-shadow:0 0 0 2px #ffd23f}
+.pl.champ{position:relative;box-shadow:0 0 0 2px #ffd23f}
+.players.crowned{padding-top:16px;row-gap:20px}
 .crown{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-size:20px;line-height:1;filter:drop-shadow(0 2px 2px #0008)}
 .credit{text-align:center;font-size:13px;opacity:.6;margin:18px 0 4px;letter-spacing:.5px}
 .credit b{color:#ffd23f;opacity:1}
@@ -134,8 +135,7 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .apc{text-align:center;font-weight:800;color:#ffd23f;font-size:15px}
 .a2hs summary{font-weight:700;cursor:pointer;font-size:16px}
 .a2hs ol{margin:8px 0 2px;padding-left:22px;line-height:1.6;font-size:15px}
-.shareic{display:inline-block;border:2px solid #8fd3ff;border-radius:4px;width:16px;height:16px;position:relative;vertical-align:-2px;margin:0 2px}
-.shareic:after{content:'↑';position:absolute;top:-9px;left:2px;color:#8fd3ff;font-weight:900;font-size:13px}
+.shareic{width:20px;height:20px;vertical-align:-4px;margin:0 2px}
 .hero{display:flex;align-items:center;justify-content:center;gap:2px;margin:22px 0 4px}
 .title{margin:0 4px;font-size:clamp(40px,12.5vw,72px);font-weight:900;letter-spacing:2px;font-style:italic;line-height:1;
   background:linear-gradient(180deg,#fff6c2 0%,#ffd23f 45%,#e08a00 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
@@ -928,7 +928,7 @@ function renderHome() {
       <summary>📲 Add Killer to your Home Screen</summary>
       <ol>
         <li>Open this page in <b>Safari</b></li>
-        <li>Tap <b>Share</b> <span class="shareic"></span> at the bottom</li>
+        <li>Tap the <b>Share</b> button <svg class="shareic" viewBox="0 0 24 24" fill="none" stroke="#8fd3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 9.5H6v11.5h12V9.5h-2.5"/><path d="M12 2.5v12"/><path d="M8.5 6L12 2.5 15.5 6"/></svg> (or <b>•••</b> → Share)</li>
         <li>Scroll down, tap <b>Add to Home Screen</b></li>
         <li>Tap <b>Add</b>. Open Killer from the icon next time.</li>
       </ol>
@@ -1147,7 +1147,7 @@ function renderGame(g) {
 
   document.body.classList.toggle('hasbar', !spectator);
   $('#app').innerHTML = `
-    <div class="players">${playersBar}</div>
+    <div class="players ${g.order.includes(g.champ) ? 'crowned' : ''}">${playersBar}</div>
     ${banner}
     <div id="apcount" class="apc"></div>
     <div class="table">${center}</div>
@@ -1187,9 +1187,9 @@ const FX = {
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
-  win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 3000, backdrop: true },
-  threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 3400, shake: true, backdrop: true },
-  threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW! Punishment time!', size: 54, ms: 3200, shake: true, backdrop: true }
+  win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
+  threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 1700, shake: true, backdrop: true },
+  threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW! Punishment time!', size: 54, ms: 1600, shake: true, backdrop: true }
 };
 function showFx(type, x) {
   const f = FX[type]; if (!f) return;
@@ -1249,9 +1249,16 @@ function silentWav() {                                        // tiny silent cli
   w(36, 'data'); v.setUint32(40, n * 2, true);
   return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
 }
+function resetAudio() {                                       // iPhone kills audio when you leave the app: start fresh
+  try { if (actx) actx.close(); } catch (e) {}
+  actx = null; unlocked = false;
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) resetAudio(); });
+window.addEventListener('pageshow', resetAudio);
 function unlockAudio() {
   try {
     if (navigator.audioSession) navigator.audioSession.type = 'playback';   // play even with the ring switch on silent
+    if (actx && (actx.state === 'interrupted' || actx.state === 'closed')) resetAudio();
     if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
     if (!actx) return;
     if (actx.state !== 'running') actx.resume();
@@ -1264,8 +1271,8 @@ function unlockAudio() {
   } catch (e) {}
 }
 ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, true));
-function testSound() { unlockAudio(); if (!soundOn) { soundOn = true; try { localStorage.setItem('killer_sound', 'on'); } catch (e) {} } setTimeout(() => sfx('killer'), 80); }
-function toggleSound() { soundOn = !soundOn; try { localStorage.setItem('killer_sound', soundOn ? 'on' : 'off'); } catch (e) {} if (soundOn) { unlockAudio(); setTimeout(() => sfx('turn'), 50); } render(); }
+function testSound() { resetAudio(); unlockAudio(); if (!soundOn) { soundOn = true; try { localStorage.setItem('killer_sound', 'on'); } catch (e) {} } setTimeout(() => sfx('killer'), 80); }
+function toggleSound() { soundOn = !soundOn; try { localStorage.setItem('killer_sound', soundOn ? 'on' : 'off'); } catch (e) {} if (soundOn) { resetAudio(); unlockAudio(); setTimeout(() => sfx('turn'), 80); } render(); }
 function tone(f, at, dur, type, vol, to) {
   const t = actx.currentTime + at, o = actx.createOscillator(), g = actx.createGain();
   o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
@@ -1286,7 +1293,11 @@ const SOUNDS = {
 };
 function sfx(n) {
   if (!soundOn || !actx || !SOUNDS[n]) return;
-  try { if (actx.state !== 'running') actx.resume(); SOUNDS[n](); } catch (e) {}
+  try {
+    if (actx.state === 'interrupted' || actx.state === 'closed') { resetAudio(); return; }   // next tap brings it back
+    if (actx.state !== 'running') actx.resume().then(() => SOUNDS[n]()).catch(() => {});
+    else SOUNDS[n]();
+  } catch (e) {}
 }
 
 function turnFlash() {
