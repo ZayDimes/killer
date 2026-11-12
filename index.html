@@ -868,15 +868,19 @@ function placeRules(top) {
   if (top) { a.parentNode.insertBefore(r, a); r.style.padding = '16px 16px 0'; }
   else { a.after(r); r.style.padding = ''; }
 }
-function renderHome() {
-  placeRules(true);
+// The KILLER logo with four 2s fanned around it (home + lobby)
+function heroHTML() {
   const hc = (r, s, cls) => `<div class="hcard ${cls} ${s === '♦' || s === '♥' ? 'red' : ''}"><span>${r}</span><span class="hs">${s}</span></div>`;
-  $('#app').innerHTML = `
-    <div class="hero">
+  return `<div class="hero">
       <div class="fan left">${hc('2', '♠', 'c1')}${hc('2', '♣', 'c2')}</div>
       <h1 class="title">KILLER</h1>
       <div class="fan right">${hc('2', '♦', 'c3')}${hc('2', '♥', 'c4')}</div>
-    </div>
+    </div>`;
+}
+function renderHome() {
+  placeRules(true);
+  $('#app').innerHTML = `
+    ${heroHTML()}
     <p class="small" style="text-align:center">Play with friends anywhere</p>
     <div class="panel">
       <h3>1. Your name</h3>
@@ -962,7 +966,7 @@ function renderLobby() {
   const ps = Object.entries(room.players || {}).sort((a, b) => a[1].joined - b[1].joined);
   const host = room.host === me;
   $('#app').innerHTML = `
-    <h1>KILLER</h1>
+    ${heroHTML()}
     <p style="text-align:center">Room code</p>
     <div class="code">${esc(roomCode)}</div>
     <div class="row" style="justify-content:center;margin:6px 0 10px">
