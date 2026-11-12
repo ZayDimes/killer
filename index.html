@@ -117,6 +117,10 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 #rules details{padding:6px 12px;border-radius:10px;background:#00000020}
 #rules summary{font-size:13px;font-weight:600;opacity:.75}
 #rules ul{font-size:13px}
+.pl.champ{position:relative;margin-top:14px;box-shadow:0 0 0 2px #ffd23f}
+.crown{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-size:20px;line-height:1;filter:drop-shadow(0 2px 2px #0008)}
+.credit{text-align:center;font-size:13px;opacity:.6;margin:18px 0 4px;letter-spacing:.5px}
+.credit b{color:#ffd23f;opacity:1}
 .lvl{display:flex;gap:6px;align-items:center;justify-content:center;font-size:14px;margin-bottom:4px}
 .lvl button{font-size:14px;padding:8px 14px;margin:0}
 .lvl button.on{background:#ffd23f;color:#222}
@@ -500,8 +504,9 @@ function doPlay(g, who, cards) {
         const humans = g.order.filter(id => !g.bots[id]).length;
         g.endInfo = { broken, players: humans,
                       hall: g.streaks[winner].w % 3 === 0 && humans >= 4 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 4+ real people
-        if (g.streaks[winner].w % 3 === 0) g.fx = { t: Date.now(), type: 'threewin' };
-        else if (g.streaks[loser].l % 3 === 0) g.fx = { t: Date.now(), type: 'threeloss' };
+        const three = g.streaks[winner].w % 3 === 0, lost3 = g.streaks[loser].l % 3 === 0;
+        g.fx = { t: Date.now(), type: three ? 'threewin' : 'win', name: g.names[winner],
+                 sub: lost3 ? '💀 ' + g.names[loser] + ': 3 losses, punishment time!' : '' };
         return;
       }
     }
@@ -557,6 +562,7 @@ function nextGame() {
     g.gameNo = (g.gameNo || 1) + 1; g.loser = null; g.endInfo = null;
     if (fresh) g.log = (dropped.length > 1 ? '🤖 The CPUs left the table. ' : '🤖 The CPU left the table. ') + g.log;
     else { g.turn = winner; g.log = g.names[winner] + ' won last game and leads anything.'; }
+    g.champ = g.order.includes(winner) ? winner : null;      // 👑 over last game's winner
   }, () => dropped.forEach(id => db.ref('rooms/' + roomCode + '/players/' + id).remove()));
 }
 
@@ -941,7 +947,8 @@ function renderHome() {
       <h3>🏆 Hall of Fame</h3>
       <p class="small" style="margin:0 0 8px">Times someone won 3 in a row in games with 4+ real people. A 6-win streak counts twice.</p>
       <div id="hof"><p class="small" style="margin:0">Loading…</p></div>
-    </div>`;
+    </div>
+    <p class="credit">♠ Created by <b>Isaiah Allen</b> ♥</p>`;
   loadHall();
   setTimeout(() => { updatePresence(); paintOnline(); }, 0);
 }
@@ -1023,7 +1030,7 @@ function renderGame(g) {
   const spectator = !g.order.includes(me);
   // Big effects (nice / KKK / bomb / killer)
   if (g.fx && g.fx.t !== lastFx) {
-    if (lastFx !== null) showFx(g.fx.type);
+    if (lastFx !== null) showFx(g.fx.type, g.fx);
     lastFx = g.fx.t;
   } else if (lastFx === null) lastFx = g.fx ? g.fx.t : 0;
   // Flash when it becomes your turn
@@ -1057,8 +1064,8 @@ function renderGame(g) {
     if ((s.l || 0) >= 3) badge += ` 💀${s.l}L`;
     const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${g.hands[id].length} cards`;
     const t = g.tally[id] || {};
-    return `<div class="pl ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''}">
-      <div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div>${status}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
+    return `<div class="pl ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}">
+      ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div>${status}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
 
   let center;
@@ -1166,21 +1173,25 @@ const FX = {
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
-  threewin:  { text: '🔥 3 IN A ROW 🔥', sub: 'Hall of Fame material!', size: 64, ms: 3000, shake: true },
+  win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 2800 },
+  threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 3200, shake: true },
   threeloss: { text: '💀 3 LOSSES 💀', sub: 'Punishment time!', size: 64, ms: 3000, shake: true }
 };
-function showFx(type) {
+function showFx(type, x) {
   const f = FX[type]; if (!f) return;
+  x = x || {};
   sfx(type);
   const n = $('#fx');
-  n.innerHTML = `<div style="font-size:${f.size}px">${f.text}</div>${f.sub ? `<div class="sub">${f.sub}</div>` : ''}`;
+  const text = typeof f.text === 'function' ? f.text(x) : f.text;
+  const sub = [f.sub, x.sub ? esc(x.sub) : ''].filter(Boolean).join('<br>');
+  n.innerHTML = `<div style="font-size:${f.size}px">${text}</div>${sub ? `<div class="sub">${sub}</div>` : ''}`;
   n.style.display = 'flex';
   n.animate([{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1.1)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 400 });
   if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
   clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
 }
-// Keep flashing until they act: 10s, 8s, 6s, then every 5s
+// Keep flashing (and dinging) every 10s until they act
 let nagTimer = null;
 function stopNag() { clearTimeout(nagTimer); nagTimer = null; }
 function startNag(key) {
@@ -1191,7 +1202,6 @@ function startNag(key) {
       const g = room && room.game;
       if (!g || g.phase !== 'play' || g.turn !== me || (g.turn + '|' + (g.log || '')) !== key) return stopNag();
       turnFlash();
-      delay = Math.max(5000, delay - 2000);
       step();
     }, delay);
   };
@@ -1250,6 +1260,7 @@ const SOUNDS = {
   kkk:       () => tone(330, 0, .7, 'triangle', .25, 220),
   bomb:      () => { tone(180, 0, .9, 'sawtooth', .35, 35); tone(90, .05, .9, 'square', .2, 30); },
   killer:    () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .08, .28, 'square', .14)); tone(1047, .34, .5, 'square', .14); },
+  win:       () => { tone(1568, 0, .5, 'sine', .3); tone(2093, 0, .5, 'sine', .12); tone(1568, .3, .7, 'sine', .3); tone(2093, .3, .7, 'sine', .12); },
   threewin:  () => { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i * .12, .25, 'triangle', .3)); },
   threeloss: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i * .3, .35, 'sawtooth', .18)); }
 };
