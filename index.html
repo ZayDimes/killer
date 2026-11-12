@@ -494,7 +494,8 @@ function doPlay(g, who, cards) {
     g.last = me; g.passes = 0; g.firstLead = false; g.prev = null;
     g.log = g.names[me] + ' played ' + p.c.map(label).join(' ');
     const kkk = p.k === 'triple' && rk(p.c[0]) === R.indexOf('K');
-    const fx = p.k === 'killer' ? 'killer' : (p.k === 'bomb' ? 'bomb' : (kkk ? 'kkk' : (nice ? (p.c.length > 1 ? 'nicebig' : 'nice') : null)));
+    const six = p.k === 'triple' && rk(p.c[0]) === SIX;          // 666
+    const fx = p.k === 'killer' ? 'killer' : (p.k === 'bomb' ? 'bomb' : (kkk ? 'kkk' : (six ? 'devil' : (nice ? (p.c.length > 1 ? 'nicebig' : 'nice') : null))));
     if (fx) g.fx = { t: Date.now(), type: fx };
     if (!g.hands[me].length) {
       g.finished.push(me);
@@ -1203,6 +1204,7 @@ const FX = {
   nice:    { text: 'NICE', size: 72, ms: 1500 },
   nicebig: { text: 'NICE', size: 120, ms: 2200 },
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
+  devil:   { text: '😈 666 😈', size: 80, ms: 2200, shake: true },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
@@ -1303,6 +1305,7 @@ const SOUNDS = {
   nice:      () => { tone(660, 0, .14, 'triangle', .3); tone(990, .1, .3, 'triangle', .3); },
   nicebig:   () => { [660, 880, 990, 1320].forEach((f, i) => tone(f, i * .09, .3, 'triangle', .3)); },
   kkk:       () => tone(330, 0, .7, 'triangle', .25, 220),
+  devil:     () => { tone(110, 0, 1.1, 'sawtooth', .25, 55); tone(116.5, 0, 1.1, 'sawtooth', .2, 58); tone(220, .5, .6, 'square', .1, 110); },
   bomb:      () => { tone(180, 0, .9, 'sawtooth', .35, 35); tone(90, .05, .9, 'square', .2, 30); },
   killer:    () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .08, .28, 'square', .14)); tone(1047, .34, .5, 'square', .14); },
   win:       () => { tone(1568, 0, .5, 'sine', .3); tone(2093, 0, .5, 'sine', .12); tone(1568, .3, .7, 'sine', .3); tone(2093, .3, .7, 'sine', .12); },
