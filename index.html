@@ -903,7 +903,7 @@ function renderHome() {
   placeRules(true);
   $('#app').innerHTML = `
     ${heroHTML()}
-    <p class="small" style="text-align:center">Play with friends anywhere</p>
+    <p class="small" style="text-align:center">Play with friends anywhere · <a href="#" onclick="testSound();return false" style="color:#ffd23f">🔊 Test sound</a></p>
     ${navigator.standalone ? '' : `<div class="panel a2hs"><details open>
       <summary>📲 Add Killer to your Home Screen</summary>
       <ol>
@@ -1209,14 +1209,32 @@ setInterval(paintCountdown, 250);
 
 // ---------- Sounds (iPhones ignore vibration, so we beep instead) ----------
 let actx = null, soundOn = localStorage.getItem('killer_sound') !== 'off';
+let unlocked = false;
+function silentWav() {                                        // tiny silent clip, built in code
+  const n = 800, b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+  const w = (o, t) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
 function unlockAudio() {
   try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';   // play even with the ring switch on silent
     if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
-    if (actx && actx.state !== 'running') actx.resume();
+    if (!actx) return;
+    if (actx.state !== 'running') actx.resume();
+    if (!unlocked) {
+      unlocked = true;
+      const src = actx.createBufferSource(); src.buffer = actx.createBuffer(1, 1, 22050);
+      src.connect(actx.destination); src.start(0);                 // wakes up Web Audio on iPhone
+      const a = new Audio(silentWav()); a.setAttribute('playsinline', ''); a.play().catch(() => {});   // older iPhones: same trick
+    }
   } catch (e) {}
 }
-document.addEventListener('touchstart', unlockAudio, { passive: true });
-document.addEventListener('click', unlockAudio);
+['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, true));
+function testSound() { unlockAudio(); if (!soundOn) { soundOn = true; try { localStorage.setItem('killer_sound', 'on'); } catch (e) {} } setTimeout(() => sfx('killer'), 80); }
 function toggleSound() { soundOn = !soundOn; try { localStorage.setItem('killer_sound', soundOn ? 'on' : 'off'); } catch (e) {} if (soundOn) { unlockAudio(); setTimeout(() => sfx('turn'), 50); } render(); }
 function tone(f, at, dur, type, vol, to) {
   const t = actx.currentTime + at, o = actx.createOscillator(), g = actx.createGain();
