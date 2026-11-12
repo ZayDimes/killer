@@ -1145,18 +1145,18 @@ function showFx(type) {
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
   clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
 }
-// Keep flashing until they act: 5s, 4s, 3s, 2s, then every 1.5s
+// Keep flashing until they act: 10s, 8s, 6s, then every 5s
 let nagTimer = null;
 function stopNag() { clearTimeout(nagTimer); nagTimer = null; }
 function startNag(key) {
   stopNag();
-  let delay = 5000;
+  let delay = 10000;
   const step = () => {
     nagTimer = setTimeout(() => {
       const g = room && room.game;
       if (!g || g.phase !== 'play' || g.turn !== me || (g.turn + '|' + (g.log || '')) !== key) return stopNag();
       turnFlash();
-      delay = Math.max(1500, delay - 1000);
+      delay = Math.max(5000, delay - 2000);
       step();
     }, delay);
   };
