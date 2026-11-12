@@ -41,6 +41,7 @@ button:disabled{opacity:.35}
 .btns{display:flex;gap:10px;margin-top:10px}
 .btns button{flex:1}
 #fx{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000;text-align:center;z-index:50;padding:20px}
+#fx.big{background:#000d;z-index:70}
 #fx .sub{font-size:28px;color:#fff;margin-top:8px}
 #flash{position:fixed;inset:0;pointer-events:none;background:#ffd23f;opacity:0;z-index:40}
 #flash.on{animation:flash 1.2s ease-out}
@@ -97,7 +98,8 @@ button.danger{background:#c94a4a;color:#fff}
 .up{font-size:22px;margin:8px 0 0}
 .up.mine{font-size:26px}
 .table{min-height:116px;margin:8px 0 4px;padding:10px}
-.table .card{width:48px;height:70px;font-size:20px}
+.table .card{width:var(--cw,48px);height:calc(var(--cw,48px) * 1.45);font-size:calc(var(--cw,48px) * .42)}
+.table .cards.onerow{flex-wrap:nowrap}
 .log{font-size:13px;min-height:16px}
 .msg{min-height:18px}
 .hand{margin-top:2px;padding-top:0}
@@ -487,6 +489,11 @@ function doPlay(g, who, cards) {
       g.finished.push(me);
       g.log += g.finished.length === 1 ? ' and WINS! 🏆' : ' and is out.';
       const left = active(g);
+      const firstOut = g.finished.length === 1;
+      if (firstOut) {                                              // flash the winner right away
+        const three = ((g.streaks[me] || {}).w || 0) % 3 === 2;    // this win makes 3, 6, 9… in a row
+        g.fx = { t: Date.now(), type: three ? 'threewin' : 'win', name: g.names[me] };
+      }
       if (left.length === 1) {
         const winner = g.finished[0], loser = left[0];
         g.finished.push(loser); g.phase = 'over'; g.loser = loser;
@@ -504,9 +511,9 @@ function doPlay(g, who, cards) {
         const humans = g.order.filter(id => !g.bots[id]).length;
         g.endInfo = { broken, players: humans,
                       hall: g.streaks[winner].w % 3 === 0 && humans >= 4 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 4+ real people
-        const three = g.streaks[winner].w % 3 === 0, lost3 = g.streaks[loser].l % 3 === 0;
-        g.fx = { t: Date.now(), type: three ? 'threewin' : 'win', name: g.names[winner],
-                 sub: lost3 ? '💀 ' + g.names[loser] + ': 3 losses, punishment time!' : '' };
+        const lost3 = g.streaks[loser].l % 3 === 0;
+        if (lost3 && firstOut) g.fx.sub = '💀 ' + g.names[loser] + ': 3 losses, punishment time!';   // same play: add it under the win
+        else if (lost3) g.fx = { t: Date.now(), type: 'threeloss', name: g.names[loser] };
         return;
       }
     }
@@ -896,6 +903,13 @@ function placeRules(top) {
   if (top) { a.parentNode.insertBefore(r, a); r.style.padding = '16px 16px 0'; }
   else { a.after(r); r.style.padding = ''; }
 }
+// Shrink table cards so a long play (bombs, runs) always fits on one row
+function tableCardW(n, underN) {
+  const space = Math.min(window.innerWidth || 390, 700) - 64;
+  let w = Math.floor((space - (underN ? underN * 33 + 24 : 0)) / n) - 3;
+  if (w < 30 && underN) w = Math.floor(space / n) - 3;          // not enough space: "Before" wraps to its own line
+  return Math.max(22, Math.min(48, w));
+}
 // The KILLER logo with four 2s fanned around it (home + lobby)
 function heroHTML() {
   const hc = (r, s, cls) => `<div class="hcard ${cls} ${s === '♦' || s === '♥' ? 'red' : ''}"><span>${r}</span><span class="hs">${s}</span></div>`;
@@ -1076,7 +1090,7 @@ function renderGame(g) {
   } else if (g.table) {
     center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
       <div class="tablerow">${g.under ? miniPlay(g.under, 'Before') : ''}
-        <div><div class="small" style="text-align:center;margin-bottom:6px;opacity:.85">ON THE TABLE</div><div class="cards">${g.table.c.map(c => cardHTML(c)).join('')}</div>
+        <div><div class="small" style="text-align:center;margin-bottom:6px;opacity:.85">ON THE TABLE</div><div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, g.under ? arr(g.under.c).length : 0)}px">${g.table.c.map(c => cardHTML(c)).join('')}</div>
         <div class="justby">played by <span>${esc(g.names[g.table.by])}</span></div></div></div>`;
   } else {
     center = `${g.prev && g.phase !== 'over' ? miniPlay(g.prev, 'Last round ended on') : ''}
@@ -1158,7 +1172,7 @@ function renderGame(g) {
   driveBots(g);
   if (spectator) return;
   $('#hand').onclick = e => {
-    stopNag();                                                  // they're paying attention now
+    { const n = room && room.game; if (n && n.phase === 'play' && n.turn === me) startNag(n.turn + '|' + (n.log || ''), 20000); }   // tapped: next nudge in 20s
     const el = e.target.closest('.card');
     if (!el) { const gEl = e.target.closest('.grp'); if (gEl) selectGroup(+gEl.dataset.g); return; }
     const c = +el.dataset.c;
@@ -1173,9 +1187,9 @@ const FX = {
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
-  win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 2800 },
-  threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 3200, shake: true },
-  threeloss: { text: '💀 3 LOSSES 💀', sub: 'Punishment time!', size: 64, ms: 3000, shake: true }
+  win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 3000, backdrop: true },
+  threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 3400, shake: true, backdrop: true },
+  threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW! Punishment time!', size: 54, ms: 3200, shake: true, backdrop: true }
 };
 function showFx(type, x) {
   const f = FX[type]; if (!f) return;
@@ -1186,22 +1200,28 @@ function showFx(type, x) {
   const sub = [f.sub, x.sub ? esc(x.sub) : ''].filter(Boolean).join('<br>');
   n.innerHTML = `<div style="font-size:${f.size}px">${text}</div>${sub ? `<div class="sub">${sub}</div>` : ''}`;
   n.style.display = 'flex';
-  n.animate([{ transform: 'scale(.3)', opacity: 0 }, { transform: 'scale(1.1)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 400 });
+  n.classList.toggle('big', !!f.backdrop);
+  const big = n.firstElementChild; big.style.whiteSpace = 'nowrap';
+  let fs = f.size;
+  while (big.scrollWidth > n.clientWidth - 30 && fs > 18) { fs -= 3; big.style.fontSize = fs + 'px'; }   // always one line
+  n.animate([{ transform: 'scale(.85)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 250 });
+  if (f.backdrop) { const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); }
   if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
   clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; document.body.classList.remove('shake'); }, f.ms);
 }
-// Keep flashing (and dinging) every 10s until they act
+// Flash + ding every 10s on your turn. Tapping a card pushes the next one to 20s, then back to every 10s.
 let nagTimer = null;
 function stopNag() { clearTimeout(nagTimer); nagTimer = null; }
-function startNag(key) {
+function startNag(key, first) {
   stopNag();
-  let delay = 10000;
+  let delay = first || 10000;
   const step = () => {
     nagTimer = setTimeout(() => {
       const g = room && room.game;
       if (!g || g.phase !== 'play' || g.turn !== me || (g.turn + '|' + (g.log || '')) !== key) return stopNag();
       turnFlash();
+      delay = 10000;
       step();
     }, delay);
   };
