@@ -178,6 +178,9 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .seat.champ{box-shadow:0 0 0 2px #ffd23f}
 .seat .crown{top:-12px;left:-4px;transform:rotate(-20deg);font-size:18px}
 .seat .kick{font-size:10px;padding:0 5px;margin:0 0 0 2px;border-radius:5px}
+.gonl{background:#00000030;border-radius:12px;padding:8px 12px;margin:8px auto 0;max-width:420px}
+.gonl .onrow{font-size:14px;padding:4px 0}
+.gonl .onrow:last-child{border-bottom:0}
 .apc{text-align:center;font-weight:800;color:#ffd23f;font-size:15px}
 .a2hs summary{font-weight:700;cursor:pointer;font-size:16px}
 .a2hs ol{margin:8px 0 2px;padding-left:22px;line-height:1.6;font-size:15px}
@@ -916,9 +919,25 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 let connected = null;
 try { db.ref('.info/connected').on('value', s => { connected = s.val(); const c = $('#conn'); if (c) c.textContent = connected === false ? '⚠️ Reconnecting…' : ''; }); } catch (e) {}
 function paintOnline() {
+  const g = $('#gonl');
+  if (g) { const h = gameOnlineHTML(); if (g.innerHTML !== h) g.innerHTML = h; }   // in a game: only shows when someone's free
   const box = $('#onl'); if (!box) return;
   const html = onlineHTML();
   if (box.innerHTML !== html) box.innerHTML = html;           // only touch it when something changed
+}
+// In a game: friends who are online but not in this game (hidden when there's nobody)
+function gameOnlineHTML() {
+  const g = room && room.game; if (!g) return '';
+  const inGame = new Set([...arr(g.order), ...Object.keys(g.waiting || {})]);
+  const now = Date.now();
+  const list = Object.entries(online).filter(([id, o]) => id !== me && !inGame.has(id) && o && o.name && now - (o.t || 0) < 90000)
+    .sort((a, b) => a[1].name.localeCompare(b[1].name));
+  if (!list.length) return '';
+  return `<div class="gonl"><div class="small" style="margin-bottom:4px">🟢 Online now</div>${list.map(([id, o]) => {
+    const status = o.room === roomCode ? 'in this room' : o.inGame ? 'playing' : o.room ? 'in a lobby' : 'on home';
+    const btn = o.room === roomCode ? '' : invited.has(id) ? '<span class="small">Invited ✓</span>' : `<button class="sec inv" onclick="invite('${id}')">Invite</button>`;
+    return `<div class="onrow"><span><b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
+  }).join('')}</div>`;
 }
 function onlineHTML() {
   const now = Date.now();
@@ -1245,6 +1264,7 @@ function renderGame(g) {
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
     </div>
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
+    <div id="gonl">${gameOnlineHTML()}</div>
     ${chair}${over}${g.paused && g.phase !== 'over' ? `<div class="overlay"><div class="box"><h2>⏸ Paused</h2><p class="small">The CPUs are waiting on you.</p><button class="full" onclick="togglePause()">▶ Resume</button></div></div>` : ''}`;
 
   // Auto-pass only when there is truly no legal play (with a countdown)
