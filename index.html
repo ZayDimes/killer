@@ -251,7 +251,6 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
   </ul>
   <h4>Extras</h4>
   <ul>
-    <li>3 losses in a row = punishment.</li>
     <li>3 wins in a row = Hall of Fame (4+ real people; CPU wins don't count).</li>
     <li>🤖 Host can add up to 2 CPUs (Easy, Medium, Hard). They leave once 3+ real people are playing.</li>
   </ul>
@@ -591,7 +590,7 @@ function doPlay(g, who, cards) {
         g.endInfo = { broken, players: humans,
                       hall: g.streaks[winner].w % 3 === 0 && humans >= 4 && !g.bots[winner] ? g.names[winner] : null };   // every 3 in a row (3, 6, 9…) counts; needs 4+ real people
         const lost3 = g.streaks[loser].l % 3 === 0;
-        if (lost3 && firstOut) g.fx.sub = '💀 ' + g.names[loser] + ': 3 losses, punishment time!';   // same play: add it under the win
+        if (lost3 && firstOut) g.fx.sub = '💀 ' + g.names[loser] + ': ' + g.streaks[loser].l + ' losses in a row';   // same play: add it under the win
         else if (lost3) g.fx = { t: Date.now(), type: 'threeloss', name: g.names[loser] };
         return;
       }
@@ -1239,10 +1238,10 @@ function renderGame(g) {
     const sw = g.streaks[w] || {}, sl = g.streaks[l] || {};
     const info = g.endInfo || {}, nW = esc(g.names[w]), nL = esc(g.names[l]);
     let winNote = '', lossNote = '';
-    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥 ${sw.w} WINS IN A ROW 🔥<div class="b3s">${info.hall ? `Going on the Hall of Fame${sw.w > 3 ? ' again' : ''}! 🏆` : `Hall of Fame needs 4+ real people`}</div></div>`;
-    else if (sw.w >= 2) winNote = `<div class="pill">🔥 ${sw.w} in a row${sw.w === 2 ? ' · one more for 3!' : ''}</div>`;
-    if (sl.l && sl.l % 3 === 0) lossNote = `<div class="big3 loss">💀 ${sl.l} LOSSES IN A ROW 💀<div class="b3s">Punishment time!</div></div>`;
-    else if (sl.l >= 2) lossNote = `<div class="pill bad">📉 ${sl.l} in a row${sl.l === 2 ? ' · one more = punishment' : ''}</div>`;
+    if (sw.w && sw.w % 3 === 0) winNote = `<div class="big3">🔥 ${sw.w} WINS IN A ROW 🔥${info.hall ? `<div class="b3s">Going on the Hall of Fame${sw.w > 3 ? ' again' : ''}! 🏆</div>` : ''}</div>`;
+    else if (sw.w >= 2) winNote = `<div class="pill">🔥 ${sw.w} in a row</div>`;
+    if (sl.l && sl.l % 3 === 0) lossNote = `<div class="big3 loss">💀 ${sl.l} LOSSES IN A ROW 💀</div>`;
+    else if (sl.l >= 2) lossNote = `<div class="pill bad">📉 ${sl.l} in a row</div>`;
     const brokeNotes = (info.broken || []).map(b => `<div class="ovnote">${b.type === 'win' ? '❄️' : '😮‍💨'} ${esc(b.name)}'s ${b.n}-${b.type === 'win' ? 'win' : 'loss'} streak is over</div>`).join('');
     over = `<div class="overlay"><div class="box ovbox">
       <div class="ovcrown">👑</div>
@@ -1329,7 +1328,7 @@ const FX = {
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
   threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 1700, shake: true, backdrop: true },
-  threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW! Punishment time!', size: 54, ms: 1600, shake: true, backdrop: true }
+  threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW!', size: 54, ms: 1600, shake: true, backdrop: true }
 };
 function showFx(type, x) {
   const f = FX[type]; if (!f) return;
