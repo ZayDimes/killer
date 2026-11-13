@@ -1323,7 +1323,7 @@ const FX = {
   nice:    { text: 'NICE', size: 72, ms: 1500 },
   nicebig: { text: 'NICE', size: 120, ms: 2200 },
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
-  devil:   { text: '😈 666 😈', size: 80, ms: 2800 },
+  devil:   { text: '😈 666 😈', size: 80, ms: 3200 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
@@ -1419,6 +1419,28 @@ function tone(f, at, dur, type, vol, to) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.25, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.05);
 }
+// Old horror-movie pipe organ: "da-da-DAAAH" then a big low D minor chord
+function organSting(at) {
+  const ctx = actx, T = ctx.currentTime + at;
+  const out = ctx.createGain(); out.gain.value = .5; out.connect(ctx.destination);
+  const dl = ctx.createDelay(); dl.delayTime.value = .11; const fb = ctx.createGain(); fb.gain.value = .45;   // church echo
+  const wet = ctx.createGain(); wet.gain.value = .35; out.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(ctx.destination);
+  const pipe = (f, t, len, vol) => {
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(.0001, t); env.gain.exponentialRampToValueAtTime(vol, t + .03);
+    env.gain.setValueAtTime(vol, t + len - .06); env.gain.exponentialRampToValueAtTime(.0001, t + len + .25);
+    env.connect(out);
+    [[.5, .5, 'sine'], [1, .6, 'triangle'], [2, .3, 'sine'], [3, .12, 'sine'], [4, .1, 'sine']].forEach(([m, g, type]) => {   // organ stops
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; o.frequency.value = f * m; og.gain.value = g;
+      const vib = ctx.createOscillator(), vg = ctx.createGain(); vib.frequency.value = 5.5; vg.gain.value = f * m * .004; vib.connect(vg); vg.connect(o.frequency);
+      o.connect(og); og.connect(env); o.start(t); o.stop(t + len + .3); vib.start(t); vib.stop(t + len + .3);
+    });
+  };
+  pipe(440, T, .13, .22); pipe(220, T, .13, .18);                   // da
+  pipe(392, T + .13, .13, .22); pipe(196, T + .13, .13, .18);       // da
+  pipe(440, T + .26, .95, .22); pipe(220, T + .26, .95, .18);       // DAAAH
+  [73.42, 146.83, 174.61, 220, 293.66].forEach((f, i) => pipe(f, T + 1.35, 1.5, i ? .13 : .2));   // big D minor chord
+}
 // Deep, growly "HA HA HA HAAA" for 666
 function demonLaugh(at) {
   const ctx = actx, T = ctx.currentTime + at;
@@ -1456,7 +1478,7 @@ const SOUNDS = {
   nice:      () => { tone(660, 0, .14, 'triangle', .3); tone(990, .1, .3, 'triangle', .3); },
   nicebig:   () => { [660, 880, 990, 1320].forEach((f, i) => tone(f, i * .09, .3, 'triangle', .3)); },
   kkk:       () => tone(330, 0, .7, 'triangle', .25, 220),
-  devil:     () => { tone(55, 0, 2.4, 'sawtooth', .12, 40); demonLaugh(.15); },
+  devil:     () => organSting(0),
   bomb:      () => { tone(180, 0, .9, 'sawtooth', .35, 35); tone(90, .05, .9, 'square', .2, 30); },
   killer:    () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .08, .28, 'square', .14)); tone(1047, .34, .5, 'square', .14); },
   win:       () => { tone(1568, 0, .5, 'sine', .3); tone(2093, 0, .5, 'sine', .12); tone(1568, .3, .7, 'sine', .3); tone(2093, .3, .7, 'sine', .12); },
