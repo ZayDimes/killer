@@ -1323,7 +1323,7 @@ const FX = {
   nice:    { text: 'NICE', size: 72, ms: 1500 },
   nicebig: { text: 'NICE', size: 120, ms: 2200 },
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
-  devil:   { text: '😈 666 😈', size: 80, ms: 3200 },
+  devil:   { text: '😈 666 😈', size: 80, ms: 1800 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
   killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
@@ -1419,7 +1419,7 @@ function tone(f, at, dur, type, vol, to) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.25, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.05);
 }
-// Old horror-movie pipe organ: "da-da-DAAAH" then a big low D minor chord
+// Old horror-movie pipe organ: "da-da-DAAAH"
 function organSting(at) {
   const ctx = actx, T = ctx.currentTime + at;
   const out = ctx.createGain(); out.gain.value = .5; out.connect(ctx.destination);
@@ -1438,8 +1438,7 @@ function organSting(at) {
   };
   pipe(440, T, .13, .22); pipe(220, T, .13, .18);                   // da
   pipe(392, T + .13, .13, .22); pipe(196, T + .13, .13, .18);       // da
-  pipe(440, T + .26, .95, .22); pipe(220, T + .26, .95, .18);       // DAAAH
-  [73.42, 146.83, 174.61, 220, 293.66].forEach((f, i) => pipe(f, T + 1.35, 1.5, i ? .13 : .2));   // big D minor chord
+  pipe(440, T + .26, .7, .22); pipe(220, T + .26, .7, .18);       // DAAAH
 }
 // Deep, growly "HA HA HA HAAA" for 666
 function demonLaugh(at) {
