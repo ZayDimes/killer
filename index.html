@@ -159,14 +159,16 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .felt{position:absolute;inset:24px 10px;border-radius:50%;background:linear-gradient(160deg,#8a5229 0%,#5e3317 30%,#7b4521 55%,#4d2a12 80%,#6e3d1c 100%);box-shadow:0 0 0 2px #2e1808,0 10px 22px #000a,inset 0 2px 2px #ffffff30}
 .felt::before{content:'';position:absolute;inset:11px;border-radius:50%;background:radial-gradient(ellipse at center,#18854d 0%,#0f6239 62%,#0a4a2a 100%);box-shadow:inset 0 0 0 2px #c9a24a88,inset 0 6px 16px #0008}
 .hold{position:absolute;width:0;height:0;z-index:2}
-.bk{position:absolute;left:-7px;bottom:0;width:14px;height:20px;border-radius:2px;border:1px solid #fff;background:repeating-linear-gradient(45deg,#b3202a 0 2px,#d6434d 2px 4px);transform-origin:50% 160%;box-shadow:0 1px 2px #0007}
+.bk{position:absolute;left:-6px;bottom:0;width:12px;height:17px;border-radius:2px;border:1px solid #fff;background:repeating-linear-gradient(45deg,#b3202a 0 2px,#d6434d 2px 4px);transform-origin:50% 160%;box-shadow:0 1px 2px #0007}
 .chairx{position:absolute;width:52px;height:34px;z-index:1}
 .chairx .cseat{position:absolute;left:5px;right:5px;top:0;height:22px;border-radius:6px;background:#7a4a24;box-shadow:inset 0 -3px 0 #00000040}
 .chairx .cback{position:absolute;left:0;right:0;bottom:0;height:13px;border:2px solid #2a1607;border-radius:8px 8px 10px 10px;background:linear-gradient(#5a3216,#3e220e);box-shadow:0 2px 4px #0008}
 .pausebtn{position:absolute;right:0;top:-18px;z-index:5;width:40px;height:40px;padding:0;margin:0;border-radius:50%;font-size:18px;background:#00000055;color:#fff;border:1px solid #ffffff33}
 .mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:4}
 .mid .justby{margin:0;font-size:14px}
-.before{display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.65;white-space:nowrap;font-size:11px}
+.before{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;line-height:1.2;max-width:100%}
+.before .lbl{background:#0a4a2a;color:#ffffffb0;border-radius:8px;padding:1px 6px;position:relative;z-index:1}
+.before .cards{opacity:.7}
 .before .card{width:var(--mw,22px);height:calc(var(--mw,22px) * 1.45);font-size:calc(var(--mw,22px) * .48);border-width:1px;box-shadow:none}
 .seat{position:absolute;width:88px;transform:translate(-50%,-50%);background:#0d3d24;border:1px solid #ffffff22;border-radius:10px;padding:3px 4px;text-align:center;font-size:11px;line-height:1.2;z-index:3;box-shadow:0 3px 8px #0007}
 .seat .n{font-weight:800;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1152,7 +1154,7 @@ function renderGame(g) {
     const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${n} card${n === 1 ? '' : 's'}`;
     const t = g.tally[id] || {};
     const shown = Math.min(n, 13), step = shown > 1 ? Math.min(9, 70 / (shown - 1)) : 0;
-    const backs = id !== me && shown ? `<div class="hold" style="${pos(ux * (edge + 2), uy * (edge + 2))};transform:rotate(${rot}deg)">${Array.from({ length: shown }, (_, j) => `<i class="bk" style="transform:rotate(${((j - (shown - 1) / 2) * step).toFixed(1)}deg)"></i>`).join('')}</div>` : '';
+    const backs = id !== me && shown ? `<div class="hold" style="${pos(ux * (edge - 7), uy * (edge - 7))};transform:rotate(${rot}deg)">${Array.from({ length: shown }, (_, j) => `<i class="bk" style="transform:rotate(${((j - (shown - 1) / 2) * step).toFixed(1)}deg)"></i>`).join('')}</div>` : '';
     const chairEl = `<div class="chairx" style="${pos(-ux * (edge + 3), -uy * (edge + 3))};transform:translate(-50%,-50%) rotate(${rot}deg)"><i class="cseat"></i><i class="cback"></i></div>`;
     return chairEl + backs + `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="${pos(0, 0)}">
       ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
@@ -1160,7 +1162,7 @@ function renderGame(g) {
   const space = N >= 3 ? ringW - 2 * 112 : ringW - 70;          // room left in the middle of the table
   const before = (pl, title) => {
     const c = arr(pl.c), mw = Math.max(14, Math.min(22, Math.floor((space - 80) / c.length) - 2));
-    return `<div class="before" style="--mw:${mw}px"><div>${title} · ${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div></div>`;
+    return `<div class="before" style="--mw:${mw}px"><div class="lbl">${title}<br>${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div></div>`;
   };
 
   let center;
