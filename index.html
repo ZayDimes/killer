@@ -194,6 +194,10 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .gonl{background:#00000030;border-radius:12px;padding:8px 12px;margin:8px auto 0;max-width:420px}
 .gonl .onrow{font-size:14px;padding:4px 0}
 .gonl .onrow:last-child{border-bottom:0}
+#chattop{position:absolute;left:0;right:0;top:-26px;display:flex;justify-content:center;z-index:6;pointer-events:none}
+.ctop{pointer-events:auto;max-width:78%;background:#000000cc;border:1px solid #ffd23f66;border-radius:16px;padding:7px 14px;font-size:14px;line-height:1.3;box-shadow:0 4px 12px #0008;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;animation:ctop 7s ease forwards}
+.ctop b{color:#ffd23f}
+@keyframes ctop{0%{opacity:0;transform:translateY(-8px)}5%{opacity:1;transform:none}88%{opacity:1}100%{opacity:0}}
 .apc{text-align:center;font-weight:800;color:#ffd23f;font-size:15px}
 .a2hs summary{font-weight:700;cursor:pointer;font-size:16px}
 .a2hs ol{margin:8px 0 2px;padding-left:22px;line-height:1.6;font-size:15px}
@@ -1007,7 +1011,7 @@ function cardHTML(c, extra = '') {
 function placeRules(top) {
   const r = $('#rules'), a = $('#app');
   if (top) { a.parentNode.insertBefore(r, a); r.style.padding = '16px 16px 0'; }
-  else { a.after(r); r.style.padding = ''; }
+  else { $('#chat').after(r); r.style.padding = ''; }       // in a room: rules go under the chat
 }
 // The KILLER logo with four 2s fanned around it (home + lobby)
 function heroHTML() {
@@ -1068,14 +1072,25 @@ function renderHome() {
 }
 
 // ---------- Chat ----------
-let chatRef = null;
+let chatRef = null, chatStart = 0, lastChat = null;
+// Newest message from someone else pops up over the table for a few seconds (tap to hide)
+const CHAT_MS = 7000;
+function chatTopHTML() {
+  if (!lastChat) return '';
+  const age = Date.now() - lastChat.at;
+  if (age >= CHAT_MS) return '';
+  return `<div class="ctop" onclick="lastChat=null;paintChatTop()" style="animation-delay:-${age}ms">💬 <b>${esc(lastChat.name)}:</b> ${esc(lastChat.text)}</div>`;
+}
+function paintChatTop() { const el = $('#chattop'); if (el) el.innerHTML = chatTopHTML(); }
 // rules panel is always visible (home, lobby, game)
 function startChat() {
   stopChat();
   $('#chat').style.display = 'block'; $('#chatlog').innerHTML = '';
   chatRef = db.ref('rooms/' + roomCode + '/chat').limitToLast(50);
+  chatStart = Date.now() - 2000;
   chatRef.on('child_added', s => {
     const m = s.val(); if (!m) return;
+    if (m.by !== me && (m.t || 0) > chatStart) { lastChat = { name: m.name, text: m.text, at: Date.now() }; paintChatTop(); clearTimeout(paintChatTop.t); paintChatTop.t = setTimeout(paintChatTop, CHAT_MS + 50); }
     const log = $('#chatlog');
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     log.insertAdjacentHTML('beforeend', `<div class="m ${m.by === me ? 'mine' : ''}"><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`);
@@ -1215,7 +1230,7 @@ function renderGame(g) {
     center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
       <div style="max-width:${space}px">${g.phase === 'over' ? 'Game over' : '<b>' + esc(g.names[g.turn]) + '</b> leads<br>play anything'}</div>`;
   }
-  const tableHTML = `<div class="ring" style="--rh:${ringH}px">${canPause(g) ? `<button class="pausebtn" onclick="togglePause()">${g.paused ? '▶' : '⏸'}</button>` : ''}<div class="felt"></div><div class="mid" style="width:${space}px">${center}</div>${seats}</div>`;
+  const tableHTML = `<div class="ring" style="--rh:${ringH}px">${canPause(g) ? `<button class="pausebtn" onclick="togglePause()">${g.paused ? '▶' : '⏸'}</button>` : ''}<div id="chattop">${chatTopHTML()}</div><div class="felt"></div><div class="mid" style="width:${space}px">${center}</div>${seats}</div>`;
 
   const chairNames = Object.values(g.waiting);
   let over = '';
