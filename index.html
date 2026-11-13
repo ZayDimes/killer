@@ -1436,9 +1436,9 @@ function organSting(at) {
       o.connect(og); og.connect(env); o.start(t); o.stop(t + len + .3); vib.start(t); vib.stop(t + len + .3);
     });
   };
-  pipe(440, T, .13, .22); pipe(220, T, .13, .18);                   // da
-  pipe(392, T + .13, .13, .22); pipe(196, T + .13, .13, .18);       // da
-  pipe(440, T + .26, .7, .22); pipe(220, T + .26, .7, .18);       // DAAAH
+  pipe(220, T, .13, .26); pipe(110, T, .13, .24);                   // da
+  pipe(196, T + .13, .13, .26); pipe(98, T + .13, .13, .24);        // da
+  pipe(220, T + .26, .7, .26); pipe(110, T + .26, .7, .24); pipe(55, T + .26, .7, .2);   // DAAAH (with low pedal)
 }
 // Deep, growly "HA HA HA HAAA" for 666
 function demonLaugh(at) {
