@@ -1427,21 +1427,21 @@ function demonLaugh(at) {
   for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(3 * x); }
   ws.curve = curve; ws.connect(out);
   const formant = (f, q, g) => { const b = ctx.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = f; b.Q.value = q; const v = ctx.createGain(); v.gain.value = g; b.connect(v); v.connect(ws); return b; };
-  const F = [formant(480, 4, 1.4), formant(880, 6, .9), formant(2300, 8, .25)];   // "ah", pitched way down
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.connect(ws);
+  const F = [formant(360, 4, 1.6), formant(640, 6, 1), formant(1700, 8, .2)];   // "ah", pitched way down
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 200; lp.connect(ws);
   const noise = ctx.createBuffer(1, ctx.sampleRate * .12, ctx.sampleRate);
   const nd = noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const hits = [0, .32, .64, .98], lens = [.24, .24, .26, .75];
   hits.forEach((h, i) => {
-    const t = T + h, len = lens[i], f0 = 92 - i * 7;
+    const t = T + h, len = lens[i], f0 = 64 - i * 5;
     const hs = ctx.createBufferSource(), hb = ctx.createBiquadFilter(), hg = ctx.createGain();   // breathy "h"
-    hs.buffer = noise; hb.type = 'bandpass'; hb.frequency.value = 1100; hb.Q.value = 1.5;
+    hs.buffer = noise; hb.type = 'bandpass'; hb.frequency.value = 800; hb.Q.value = 1.5;
     hg.gain.setValueAtTime(.0001, t); hg.gain.exponentialRampToValueAtTime(.5, t + .02); hg.gain.exponentialRampToValueAtTime(.0001, t + .1);
     hs.connect(hb); hb.connect(hg); hg.connect(ws); hs.start(t); hs.stop(t + .12);
     const env = ctx.createGain();                                   // the "AH"
     env.gain.setValueAtTime(.0001, t + .04); env.gain.exponentialRampToValueAtTime(.6, t + .08); env.gain.exponentialRampToValueAtTime(.0001, t + len);
     const trem = ctx.createGain(); trem.gain.value = .7;             // growl wobble
-    const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 28; lg.gain.value = .3; lfo.connect(lg); lg.connect(trem.gain);
+    const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 22; lg.gain.value = .3; lfo.connect(lg); lg.connect(trem.gain);
     [[f0, 'sawtooth', 1], [f0 / 2, 'square', .5], [f0 * 1.01, 'sawtooth', .6]].forEach(([f, type, g]) => {
       const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; og.gain.value = g;
       o.frequency.setValueAtTime(f, t + .04); o.frequency.exponentialRampToValueAtTime(f * (i === 3 ? .55 : .8), t + len);
