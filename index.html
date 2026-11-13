@@ -155,18 +155,25 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .suits .chip{width:34px;height:42px;font-size:24px}
 .suits b{font-size:18px;opacity:.7;margin:0 4px}
 .lohi{display:flex;justify-content:space-between;font-size:11px;color:#ffd23f;letter-spacing:1px;padding:2px 10px 0}
-.ring{position:relative;height:var(--rh,300px);margin:16px 0 4px}
-.felt{position:absolute;inset:22px 4px;border-radius:50%;background:radial-gradient(ellipse at center,#17804a 0%,#0f6239 60%,#0a4a2a 100%);border:6px solid #6b3e1f;box-shadow:inset 0 0 0 2px #ffd23f55,0 6px 18px #0008}
-.mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:2}
+.ring{position:relative;height:var(--rh,300px);margin:22px 0 14px}
+.felt{position:absolute;inset:24px 10px;border-radius:50%;background:linear-gradient(160deg,#8a5229 0%,#5e3317 30%,#7b4521 55%,#4d2a12 80%,#6e3d1c 100%);box-shadow:0 0 0 2px #2e1808,0 10px 22px #000a,inset 0 2px 2px #ffffff30}
+.felt::before{content:'';position:absolute;inset:11px;border-radius:50%;background:radial-gradient(ellipse at center,#18854d 0%,#0f6239 62%,#0a4a2a 100%);box-shadow:inset 0 0 0 2px #c9a24a88,inset 0 6px 16px #0008}
+.hold{position:absolute;width:0;height:0;z-index:2}
+.bk{position:absolute;left:-7px;bottom:0;width:14px;height:20px;border-radius:2px;border:1px solid #fff;background:repeating-linear-gradient(45deg,#b3202a 0 2px,#d6434d 2px 4px);transform-origin:50% 160%;box-shadow:0 1px 2px #0007}
+.chairx{position:absolute;width:52px;height:34px;z-index:1}
+.chairx .cseat{position:absolute;left:5px;right:5px;top:0;height:22px;border-radius:6px;background:#7a4a24;box-shadow:inset 0 -3px 0 #00000040}
+.chairx .cback{position:absolute;left:0;right:0;bottom:0;height:13px;border:2px solid #2a1607;border-radius:8px 8px 10px 10px;background:linear-gradient(#5a3216,#3e220e);box-shadow:0 2px 4px #0008}
+.pausebtn{position:absolute;right:0;top:-18px;z-index:5;width:40px;height:40px;padding:0;margin:0;border-radius:50%;font-size:18px;background:#00000055;color:#fff;border:1px solid #ffffff33}
+.mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:4}
 .mid .justby{margin:0;font-size:14px}
-.before{display:flex;align-items:center;gap:4px;opacity:.65;white-space:nowrap;font-size:11px}
+.before{display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.65;white-space:nowrap;font-size:11px}
 .before .card{width:var(--mw,22px);height:calc(var(--mw,22px) * 1.45);font-size:calc(var(--mw,22px) * .48);border-width:1px;box-shadow:none}
 .seat{position:absolute;width:88px;transform:translate(-50%,-50%);background:#0d3d24;border:1px solid #ffffff22;border-radius:10px;padding:3px 4px;text-align:center;font-size:11px;line-height:1.2;z-index:3;box-shadow:0 3px 8px #0007}
 .seat .n{font-weight:800;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seat.turn{background:#ffd23f;color:#222;border-color:#ffd23f;box-shadow:0 0 12px #ffd23faa}
 .seat.out{opacity:.5}
 .seat.champ{box-shadow:0 0 0 2px #ffd23f}
-.seat .crown{top:-16px;font-size:18px}
+.seat .crown{top:-12px;left:-4px;transform:rotate(-20deg);font-size:18px}
 .seat .kick{font-size:10px;padding:0 5px;margin:0 0 0 2px;border-radius:5px}
 .apc{text-align:center;font-weight:800;color:#ffd23f;font-size:15px}
 .a2hs summary{font-weight:700;cursor:pointer;font-size:16px}
@@ -401,14 +408,17 @@ function nextActive(g, id) {
 }
 
 // Run a move atomically so two phones can't clash.
+function reconnect() { try { db.goOffline(); db.goOnline(); } catch (e) {} }
 function act(fn, after, quiet) {
-  let err = null;
+  let err = null, done = false;
+  const dog = setTimeout(() => { if (!done) { if (!quiet) flash('Connection hiccup, reconnecting… tap again if needed'); reconnect(); } }, 4000);
   gameRef().transaction(g => {
     if (!g) return g;
     norm(g); err = fn(g);
     if (err) return;            // abort
     return g;
   }, (e, committed, snap) => {
+    done = true; clearTimeout(dog);
     if (err) { if (!quiet) flash(err); } else if (e) { if (!quiet) flash(e.message); }
     else if (committed && after) after(snap && snap.val());
   });
@@ -510,6 +520,7 @@ function claim() {
 function doPlay(g, who, cards) {
     const me = who;
     if (g.phase !== 'play') return 'Not now';
+    if (g.paused) return 'Game is paused';
     if (g.turn !== me) return 'Not your turn';
     const hand = g.hands[me];
     if (!cards.length || !cards.every(c => hand.includes(c))) return 'Pick cards from your hand';
@@ -578,6 +589,7 @@ function pass(auto) {
 function doPass(g, who) {
     const me = who;
     if (g.phase !== 'play') return 'Not now';
+    if (g.paused) return 'Game is paused';
     if (g.turn !== me) return 'Not your turn';
     if (!g.table) return 'You\'re leading — play something';
     g.passes = (g.passes || 0) + 1;
@@ -592,6 +604,8 @@ function doPass(g, who) {
     }
 }
 
+const canPause = g => g.order.includes(me) && g.order.filter(id => !g.bots[id]).length === 1 && g.phase !== 'over';
+function togglePause() { act(g => { if (!canPause(g)) return 'Pause is only for games with CPUs'; g.paused = !g.paused; }); }
 function nextGame() {
   let dropped = [];
   act(g => {
@@ -852,7 +866,7 @@ function botTick() {
   let id = null;
   if (g.phase === 'play' && g.bots[g.turn]) id = g.turn;
   else if (g.phase === 'claim') id = g.claimers.find(c => g.bots[c]);
-  if (!id) { botSeen = ''; return; }
+  if (!id || g.paused) { botSeen = ''; return; }
   const key = id + '|' + g.phase + '|' + (g.log || '') + '|' + g.dealId + '|' + g.passes;
   const now = Date.now();
   if (key !== botSeen) { botSeen = key; botSince = now; botTry = 0; botDelay = (g.phase === 'claim' ? 2500 : 1400) + Math.random() * 800; }
@@ -895,7 +909,9 @@ function updatePresence(force) {
   try { onRef().onDisconnect().remove(); } catch (e) {}
 }
 setInterval(() => updatePresence(true), 30000);             // heartbeat
-document.addEventListener('visibilitychange', () => { if (!document.hidden) updatePresence(true); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { reconnect(); updatePresence(true); } });   // iPhone drops the connection in the background
+let connected = null;
+try { db.ref('.info/connected').on('value', s => { connected = s.val(); const c = $('#conn'); if (c) c.textContent = connected === false ? '⚠️ Reconnecting…' : ''; }); } catch (e) {}
 function paintOnline() {
   const box = $('#onl'); if (!box) return;
   const html = onlineHTML();
@@ -1096,7 +1112,7 @@ function renderGame(g) {
   // Flash when it becomes your turn
   const turnKey = g.phase === 'play' ? g.turn + '|' + (g.log || '') : '';
   if (turnKey !== lastTurnKey) {
-    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me) { turnFlash(); startNag(turnKey, 20000); }   // 1st reminder right away, 2nd after 20s, then every 10s
+    if (lastTurnKey !== null && g.phase === 'play' && g.turn === me && !g.paused) { turnFlash(); startNag(turnKey, 20000); }   // 1st reminder right away, 2nd after 20s, then every 10s
     else stopNag();
     lastTurnKey = turnKey;
   }
@@ -1122,21 +1138,29 @@ function renderGame(g) {
   const ringW = Math.min(window.innerWidth || 390, 700) - 32;
   const ringH = N >= 6 ? 330 : 300;
   const seats = g.order.map((id, i) => {
-    const k = (i - base + N) % N, a = (90 + 360 * k / N) * Math.PI / 180;
-    const cx = Math.cos(a).toFixed(3), cy = Math.sin(a).toFixed(3);
+    const k = (i - base + N) % N, deg = 90 + 360 * k / N, a = deg * Math.PI / 180;
+    const cx = Math.cos(a), cy = Math.sin(a);
+    const pos = (dx, dy) => `left:calc(50% + (50% - 56px) * ${cx.toFixed(3)} + ${dx.toFixed(1)}px);top:calc(50% + (50% - 30px) * ${cy.toFixed(3)} + ${dy.toFixed(1)}px)`;
+    const ux = -cx, uy = -cy;                                   // toward the middle of the table
+    const edge = Math.min(Math.abs(ux) > .01 ? 44 / Math.abs(ux) : 999, Math.abs(uy) > .01 ? 26 / Math.abs(uy) : 999);
+    const rot = deg - 90;                                       // "up" = toward the table
     const s = g.streaks[id] || {}, place = g.finished.indexOf(id);
     let badge = '';
     if ((s.w || 0) >= 3) badge += ` 🔥${s.w}`;
     if ((s.l || 0) >= 3) badge += ` 💀${s.l}`;
-    const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${g.hands[id].length} cards`;
+    const n = place >= 0 ? 0 : g.hands[id].length;
+    const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${n} card${n === 1 ? '' : 's'}`;
     const t = g.tally[id] || {};
-    return `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="left:calc(50% + (50% - 46px) * ${cx});top:calc(50% + (50% - 26px) * ${cy})">
+    const shown = Math.min(n, 13), step = shown > 1 ? Math.min(9, 70 / (shown - 1)) : 0;
+    const backs = id !== me && shown ? `<div class="hold" style="${pos(ux * (edge + 2), uy * (edge + 2))};transform:rotate(${rot}deg)">${Array.from({ length: shown }, (_, j) => `<i class="bk" style="transform:rotate(${((j - (shown - 1) / 2) * step).toFixed(1)}deg)"></i>`).join('')}</div>` : '';
+    const chairEl = `<div class="chairx" style="${pos(-ux * (edge + 3), -uy * (edge + 3))};transform:translate(-50%,-50%) rotate(${rot}deg)"><i class="cseat"></i><i class="cback"></i></div>`;
+    return chairEl + backs + `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="${pos(0, 0)}">
       ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
-  const space = N >= 3 ? ringW - 2 * 94 : ringW - 70;          // room left in the middle of the table
+  const space = N >= 3 ? ringW - 2 * 112 : ringW - 70;          // room left in the middle of the table
   const before = (pl, title) => {
     const c = arr(pl.c), mw = Math.max(14, Math.min(22, Math.floor((space - 80) / c.length) - 2));
-    return `<div class="before" style="--mw:${mw}px"><span>${title}</span><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div><span>${esc(g.names[pl.by] || '')}</span></div>`;
+    return `<div class="before" style="--mw:${mw}px"><div>${title} · ${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div></div>`;
   };
 
   let center;
@@ -1153,7 +1177,7 @@ function renderGame(g) {
     center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
       <div style="max-width:${space}px">${g.phase === 'over' ? 'Game over' : '<b>' + esc(g.names[g.turn]) + '</b> leads<br>play anything'}</div>`;
   }
-  const tableHTML = `<div class="ring" style="--rh:${ringH}px"><div class="felt"></div><div class="mid" style="width:${space}px">${center}</div>${seats}</div>`;
+  const tableHTML = `<div class="ring" style="--rh:${ringH}px">${canPause(g) ? `<button class="pausebtn" onclick="togglePause()">${g.paused ? '▶' : '⏸'}</button>` : ''}<div class="felt"></div><div class="mid" style="width:${space}px">${center}</div>${seats}</div>`;
 
   const chairNames = Object.values(g.waiting);
   let over = '';
@@ -1207,6 +1231,7 @@ function renderGame(g) {
   $('#app').innerHTML = `
     ${tableHTML}
     ${banner}
+    <div id="conn" class="apc">${connected === false ? '⚠️ Reconnecting…' : ''}</div>
     <div id="apcount" class="apc"></div>
     <div class="log">${esc(g.log || '')}</div>
     <div id="msg" class="msg"></div>
@@ -1217,12 +1242,13 @@ function renderGame(g) {
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
     </div>
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
-    ${chair}${over}`;
+    ${chair}${over}${g.paused && g.phase !== 'over' ? `<div class="overlay"><div class="box"><h2>⏸ Paused</h2><p class="small">The CPUs are waiting on you.</p><button class="full" onclick="togglePause()">▶ Resume</button></div></div>` : ''}`;
 
   // Auto-pass only when there is truly no legal play (with a countdown)
-  if (autoPassOn && myTurn && g.table && !hasPlay(hand, g.table, g.locked)) {
+  if (g.paused) { stopNag(); autoKey = ''; }
+  if (autoPassOn && myTurn && !g.paused && g.table && !hasPlay(hand, g.table, g.locked)) {
     const k = g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
-    if (autoKey !== k) { autoKey = k; autoDeadline = Date.now() + 5000; stopNag(); setTimeout(() => { const n = room && room.game; if (autoPassOn && n && n.turn === me && n.log === g.log) pass(true); }, 5000); }
+    if (autoKey !== k) { autoKey = k; autoDeadline = Date.now() + 5000; stopNag(); setTimeout(() => { const n = room && room.game; if (autoPassOn && n && !n.paused && n.turn === me && n.log === g.log) pass(true); }, 5000); }
   } else autoDeadline = 0;
   paintCountdown();
 
