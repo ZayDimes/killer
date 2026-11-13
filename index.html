@@ -1419,6 +1419,35 @@ function tone(f, at, dur, type, vol, to) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.25, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.05);
 }
+// Samurai sword: "SHING" draw, fast whoosh, then the slice
+function swordSlash(at) {
+  const ctx = actx, T = ctx.currentTime + at;
+  const out = ctx.createGain(); out.gain.value = .7; out.connect(ctx.destination);
+  const nb = ctx.createBuffer(1, ctx.sampleRate * .6, ctx.sampleRate), nd = nb.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = (t, len, type, f1, f2, q, vol) => {
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = nb; f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f1, t); f.frequency.exponentialRampToValueAtTime(f2, t + len);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + len * .3); g.gain.exponentialRampToValueAtTime(.0001, t + len);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t); src.stop(t + len + .02);
+  };
+  // 1. blade leaves the sheath: scrape + metallic ring
+  noise(T, .22, 'bandpass', 3000, 7000, 3, .35);
+  [2350, 3720, 5140, 6890].forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(.0001, T + .08); g.gain.exponentialRampToValueAtTime(.09 / (i + 1), T + .1); g.gain.exponentialRampToValueAtTime(.0001, T + .75 - i * .1);
+    o.connect(g); g.connect(out); o.start(T + .08); o.stop(T + .8);
+  });
+  // 2. the swing: whoosh dropping fast
+  noise(T + .5, .22, 'bandpass', 2500, 300, 1.2, .9);
+  // 3. the cut: sharp slice + low thud
+  noise(T + .68, .09, 'highpass', 4000, 1500, .7, .6);
+  const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(140, T + .68); o.frequency.exponentialRampToValueAtTime(45, T + .9);
+  g.gain.setValueAtTime(.0001, T + .68); g.gain.exponentialRampToValueAtTime(.8, T + .69); g.gain.exponentialRampToValueAtTime(.0001, T + .95);
+  o.connect(g); g.connect(out); o.start(T + .68); o.stop(T + 1);
+}
 // Old horror-movie pipe organ: "da-da-DAAAH"
 function organSting(at) {
   const ctx = actx, T = ctx.currentTime + at;
@@ -1479,7 +1508,7 @@ const SOUNDS = {
   kkk:       () => tone(330, 0, .7, 'triangle', .25, 220),
   devil:     () => organSting(0),
   bomb:      () => { tone(180, 0, .9, 'sawtooth', .35, 35); tone(90, .05, .9, 'square', .2, 30); },
-  killer:    () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .08, .28, 'square', .14)); tone(1047, .34, .5, 'square', .14); },
+  killer:    () => swordSlash(0),
   win:       () => { tone(1568, 0, .5, 'sine', .3); tone(2093, 0, .5, 'sine', .12); tone(1568, .3, .7, 'sine', .3); tone(2093, .3, .7, 'sine', .12); },
   threewin:  () => { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i * .12, .25, 'triangle', .3)); },
   threeloss: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i * .3, .35, 'sawtooth', .18)); }
