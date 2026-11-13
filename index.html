@@ -902,7 +902,9 @@ function shareCode() {
 }
 
 // ---------- Who's online + invites ----------
-let online = {}, invited = new Set(), lastPres = '';
+let online = {}, invited = new Map(), lastPres = '';
+const justInvited = id => { const v = invited.get(id); return !!v && v.room === roomCode && Date.now() - v.t < 30000; };   // "Invited ✓" for 30s, then you can send another
+const inviteBtn = id => justInvited(id) ? '<span class="small">Invited ✓</span>' : `<button class="sec inv" onclick="invite('${id}')">${invited.has(id) ? 'Invite again' : 'Invite'}</button>`;
 const onRef = () => db.ref('rooms/_online/' + me);
 function updatePresence(force) {
   const name = localStorage.getItem('killer_name');
@@ -935,7 +937,7 @@ function gameOnlineHTML() {
   if (!list.length) return '';
   return `<div class="gonl"><div class="small" style="margin-bottom:4px">🟢 Online now</div>${list.map(([id, o]) => {
     const status = o.room === roomCode ? 'in this room' : o.inGame ? 'playing' : o.room ? 'in a lobby' : 'on home';
-    const btn = o.room === roomCode ? '' : invited.has(id) ? '<span class="small">Invited ✓</span>' : `<button class="sec inv" onclick="invite('${id}')">Invite</button>`;
+    const btn = o.room === roomCode ? '' : inviteBtn(id);
     return `<div class="onrow"><span><b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
   }).join('')}</div>`;
 }
@@ -948,14 +950,15 @@ function onlineHTML() {
   return list.map(([id, o]) => {
     const here = o.room && o.room === roomCode;
     const status = here ? 'in this room' : o.inGame ? 'playing a game' : o.room ? 'in a lobby' : 'on the home screen';
-    const btn = roomCode && !here ? (invited.has(id) ? '<span class="small">Invited ✓</span>' : `<button class="sec inv" onclick="invite('${id}')">Invite</button>`) : '';
+    const btn = roomCode && !here ? (inviteBtn(id)) : '';
     return `<div class="onrow"><span>🟢 <b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
   }).join('');
 }
 function invite(id) {
   const name = (room && room.players && room.players[me] && room.players[me].name) || localStorage.getItem('killer_name') || 'Someone';
   db.ref('rooms/_invites/' + id).set({ from: name, room: roomCode, t: Date.now() });
-  invited.add(id); paintOnline(); flash('Invite sent ✅');
+  invited.set(id, { room: roomCode, t: Date.now() }); paintOnline(); flash('Invite sent ✅');
+  setTimeout(paintOnline, 30500);                            // bring the button back
 }
 function listenOnline() {
   db.ref('rooms/_online').on('value', s => { online = s.val() || {}; paintOnline(); });
