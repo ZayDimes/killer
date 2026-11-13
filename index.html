@@ -155,7 +155,7 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .suits .chip{width:34px;height:42px;font-size:24px}
 .suits b{font-size:18px;opacity:.7;margin:0 4px}
 .lohi{display:flex;justify-content:space-between;font-size:11px;color:#ffd23f;letter-spacing:1px;padding:2px 10px 0}
-.ring{position:relative;height:var(--rh,300px);margin:22px 0 14px}
+.ring{position:relative;height:var(--rh,300px);margin:30px 0 22px}
 .felt{position:absolute;inset:24px 10px;border-radius:50%;background:linear-gradient(160deg,#8a5229 0%,#5e3317 30%,#7b4521 55%,#4d2a12 80%,#6e3d1c 100%);box-shadow:0 0 0 2px #2e1808,0 10px 22px #000a,inset 0 2px 2px #ffffff30}
 .felt::before{content:'';position:absolute;inset:11px;border-radius:50%;background:radial-gradient(ellipse at center,#18854d 0%,#0f6239 62%,#0a4a2a 100%);box-shadow:inset 0 0 0 2px #c9a24a88,inset 0 6px 16px #0008}
 .hold{position:absolute;width:0;height:0;z-index:2}
@@ -166,6 +166,7 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .pausebtn{position:absolute;right:0;top:-18px;z-index:5;width:40px;height:40px;padding:0;margin:0;border-radius:50%;font-size:18px;background:#00000055;color:#fff;border:1px solid #ffffff33}
 .mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:4}
 .mid .justby{margin:0;font-size:14px}
+.mid .tag{font-size:11px;line-height:1.1;letter-spacing:.5px}
 .before{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;line-height:1.2;max-width:100%}
 .before .lbl{background:#0a4a2a;color:#ffffffb0;border-radius:8px;padding:1px 6px;position:relative;z-index:1}
 .before .cards{opacity:.7}
@@ -1149,17 +1150,17 @@ function renderGame(g) {
     const s = g.streaks[id] || {}, place = g.finished.indexOf(id);
     let badge = '';
     if ((s.w || 0) >= 3) badge += ` 🔥${s.w}`;
-    if ((s.l || 0) >= 3) badge += ` 💀${s.l}`;
+    if ((s.l || 0) >= 3) badge += ` 📉${s.l}`;
     const n = place >= 0 ? 0 : g.hands[id].length;
     const status = place === 0 ? '🏆 winner' : place > 0 ? (g.phase === 'over' && id === g.loser ? '😵 loser' : 'out') : `${n} card${n === 1 ? '' : 's'}`;
     const t = g.tally[id] || {};
     const shown = Math.min(n, 13), step = shown > 1 ? Math.min(9, 70 / (shown - 1)) : 0;
-    const backs = id !== me && shown ? `<div class="hold" style="${pos(ux * (edge - 7), uy * (edge - 7))};transform:rotate(${rot}deg)">${Array.from({ length: shown }, (_, j) => `<i class="bk" style="transform:rotate(${((j - (shown - 1) / 2) * step).toFixed(1)}deg)"></i>`).join('')}</div>` : '';
-    const chairEl = `<div class="chairx" style="${pos(-ux * (edge + 3), -uy * (edge + 3))};transform:translate(-50%,-50%) rotate(${rot}deg)"><i class="cseat"></i><i class="cback"></i></div>`;
+    const backs = id !== me && shown ? `<div class="hold" style="${pos(-ux * (edge - 2), -uy * (edge - 2))};transform:rotate(${rot + 180}deg)">${Array.from({ length: shown }, (_, j) => `<i class="bk" style="transform:rotate(${((j - (shown - 1) / 2) * step).toFixed(1)}deg)"></i>`).join('')}</div>` : '';
+    const chairEl = `<div class="chairx" style="${pos(-ux * (edge + 8), -uy * (edge + 8))};transform:translate(-50%,-50%) rotate(${rot}deg)"><i class="cseat"></i><i class="cback"></i></div>`;
     return chairEl + backs + `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="${pos(0, 0)}">
       ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
-  const space = N >= 3 ? ringW - 2 * 112 : ringW - 70;          // room left in the middle of the table
+  const space = N >= 3 ? ringW - 2 * 102 : ringW - 70;          // room left in the middle of the table
   const before = (pl, title) => {
     const c = arr(pl.c), mw = Math.max(14, Math.min(22, Math.floor((space - 80) / c.length) - 2));
     return `<div class="before" style="--mw:${mw}px"><div class="lbl">${title}<br>${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x)).join('')}</div></div>`;
