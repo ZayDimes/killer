@@ -1325,7 +1325,7 @@ const FX = {
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
   devil:   { text: '😈 666 😈', size: 80, ms: 1800 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
-  killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2200, shake: true },
+  killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2400, shake: true },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
   threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 1700, shake: true, backdrop: true },
   threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW!', size: 54, ms: 1600, shake: true, backdrop: true }
@@ -1423,7 +1423,7 @@ function tone(f, at, dur, type, vol, to) {
 function swordSlash(at) {
   const ctx = actx, T = ctx.currentTime + at;
   const out = ctx.createGain(); out.gain.value = .7; out.connect(ctx.destination);
-  const nb = ctx.createBuffer(1, ctx.sampleRate * .6, ctx.sampleRate), nd = nb.getChannelData(0);
+  const nb = ctx.createBuffer(1, ctx.sampleRate * 1, ctx.sampleRate), nd = nb.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const noise = (t, len, type, f1, f2, q, vol) => {
     const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
@@ -1433,20 +1433,28 @@ function swordSlash(at) {
     src.connect(f); f.connect(g); g.connect(out); src.start(t); src.stop(t + len + .02);
   };
   // 1. blade leaves the sheath: scrape + metallic ring
-  noise(T, .22, 'bandpass', 3000, 7000, 3, .35);
+  noise(T, .2, 'bandpass', 3000, 7000, 3, .3);
   [2350, 3720, 5140, 6890].forEach((f, i) => {
     const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f;
     g.gain.setValueAtTime(.0001, T + .08); g.gain.exponentialRampToValueAtTime(.09 / (i + 1), T + .1); g.gain.exponentialRampToValueAtTime(.0001, T + .75 - i * .1);
     o.connect(g); g.connect(out); o.start(T + .08); o.stop(T + .8);
   });
-  // 2. the swing: whoosh dropping fast
-  noise(T + .5, .22, 'bandpass', 2500, 300, 1.2, .9);
-  // 3. the cut: sharp slice + low thud
-  noise(T + .68, .09, 'highpass', 4000, 1500, .7, .6);
+  // 2. the swing: long, rising-then-falling whoosh
+  noise(T + .35, .7, 'bandpass', 900, 3500, 1.5, .5);
+  noise(T + .55, .55, 'bandpass', 5000, 400, 2, .9);
+  // 3. the slash: long ripping slice through the air, blade still ringing after
+  noise(T + .85, .45, 'highpass', 8000, 1200, .8, .7);
+  noise(T + .85, .5, 'bandpass', 2200, 600, 3, .5);
+  [3100, 4650].forEach((f, i) => {
+    const r = ctx.createOscillator(), rg = ctx.createGain(); r.type = 'sine';
+    r.frequency.setValueAtTime(f, T + .9); r.frequency.exponentialRampToValueAtTime(f * .97, T + 1.9);
+    rg.gain.setValueAtTime(.0001, T + .9); rg.gain.exponentialRampToValueAtTime(.06 / (i + 1), T + .92); rg.gain.exponentialRampToValueAtTime(.0001, T + 1.9);
+    r.connect(rg); rg.connect(out); r.start(T + .9); r.stop(T + 2);
+  });
   const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
-  o.frequency.setValueAtTime(140, T + .68); o.frequency.exponentialRampToValueAtTime(45, T + .9);
-  g.gain.setValueAtTime(.0001, T + .68); g.gain.exponentialRampToValueAtTime(.8, T + .69); g.gain.exponentialRampToValueAtTime(.0001, T + .95);
-  o.connect(g); g.connect(out); o.start(T + .68); o.stop(T + 1);
+  o.frequency.setValueAtTime(130, T + .88); o.frequency.exponentialRampToValueAtTime(40, T + 1.15);
+  g.gain.setValueAtTime(.0001, T + .88); g.gain.exponentialRampToValueAtTime(.6, T + .9); g.gain.exponentialRampToValueAtTime(.0001, T + 1.2);
+  o.connect(g); g.connect(out); o.start(T + .88); o.stop(T + 1.25);
 }
 // Old horror-movie pipe organ: "da-da-DAAAH"
 function organSting(at) {
