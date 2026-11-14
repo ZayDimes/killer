@@ -1379,7 +1379,7 @@ function renderGame(g) {
     center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
       <div style="max-width:${space}px">${g.phase === 'over' ? 'Game over' : '<b>' + esc(g.names[g.turn]) + '</b> leads<br>play anything'}</div>`;
   }
-  const tableHTML = `<div class="ring" style="--rh:${ringH}px"><span class="goldtag gtop"><i class="brick"></i> <span class="goldnum">${profile.gold}</span></span>${canPause(g) ? `<button class="pausebtn" onclick="togglePause()">${g.paused ? '▶' : '⏸'}</button>` : ''}<div id="chattop">${chatTopHTML()}</div><div class="felt"></div><div class="mid ${N >= 5 || N === 2 ? 'wide' : ''}" style="width:${space}px">${center}</div>${seats}</div>`;
+  const tableHTML = `<div class="ring" style="--rh:${ringH}px"><span class="goldtag gtop"><i class="brick"></i> <span class="goldnum">${profile.gold}</span></span><div id="chattop">${chatTopHTML()}</div><div class="felt"></div><div class="mid ${N >= 5 || N === 2 ? 'wide' : ''}" style="width:${space}px">${center}</div>${seats}</div>`;
 
   const chairNames = Object.values(g.waiting);
   let over = '';
@@ -1442,6 +1442,7 @@ function renderGame(g) {
     ${handSection}
     <div class="row smallrow" style="margin-top:14px;justify-content:center">
       ${room.host === me ? `<button class="danger" onclick="endGame()">End game</button>` : `<button class="danger" onclick="dropOut()">${spectator ? 'Leave the chair' : 'Drop out'}</button>`}
+      ${canPause(g) ? `<button class="sec" onclick="togglePause()">⏸ Pause</button>` : ''}
       ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
       <button class="sec" onclick="toggleChime()">Turn ding/flash: ${chimeOn ? 'ON 🔔' : 'OFF 🔕'}</button>
