@@ -990,8 +990,8 @@ function gameOnlineHTML() {
   if (!list.length) return '';
   return `<div class="gonl"><div class="small" style="margin-bottom:4px">🟢 Online now</div>${list.map(([id, o]) => {
     const status = o.room === roomCode ? 'in this room' : o.inGame ? 'playing' : o.room ? 'in a lobby' : 'on home';
-    const btn = o.room === roomCode ? '' : inviteBtn(id);
-    return `<div class="onrow"><span><b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
+    const btn = o.room === roomCode ? '' : inviteBtn(id) + joinBtn(id, o);
+    return `<div class="onrow"><span><b>${esc(o.name)}</b> <span class="small">${status}</span></span><span style="white-space:nowrap">${btn}</span></div>`;
   }).join('')}</div>`;
 }
 function onlineHTML() {
@@ -1003,9 +1003,23 @@ function onlineHTML() {
   return list.map(([id, o]) => {
     const here = o.room && o.room === roomCode;
     const status = here ? 'in this room' : o.inGame ? 'playing a game' : o.room ? 'in a lobby' : 'on the home screen';
-    const btn = roomCode && !here ? (inviteBtn(id)) : '';
-    return `<div class="onrow"><span>🟢 <b>${esc(o.name)}</b> <span class="small">${status}</span></span>${btn}</div>`;
+    const btn = here ? '' : (roomCode ? inviteBtn(id) : '') + joinBtn(id, o);
+    return `<div class="onrow"><span>🟢 <b>${esc(o.name)}</b> <span class="small">${status}</span></span><span style="white-space:nowrap">${btn}</span></div>`;
   }).join('');
+}
+// Join a friend's room: their lobby, or the chair if they're mid-game (you're dealt in next game)
+const joinBtn = (id, o) => o.room ? ` <button class="sec inv" onclick="joinFriend('${id}')">${o.inGame ? '🪑 Join' : 'Join'}</button>` : '';
+function joinFriend(id) {
+  const o = online[id]; if (!o || !o.room) return flash('They\'re not in a room anymore');
+  const name = localStorage.getItem('killer_name') || ($('#name') && $('#name').value.trim());
+  if (!name) return flash('Enter your name first');
+  const go = () => {
+    if (room && room.game && arr(room.game.order).includes(me)) act(g => { removeFromGame(g, me, 'left the game'); });
+    if (roomCode) { db.ref('rooms/' + roomCode + '/players/' + me).remove(); leaveRoom(); }
+    joinCode(name, o.room);
+    if (o.inGame) flash('You\'re in the chair 🪑 You\'ll be dealt in next game');
+  };
+  if (roomCode) confirmBox(`Leave this room and join ${o.name}?`, go, 'Join'); else go();
 }
 function invite(id) {
   const name = (room && room.players && room.players[me] && room.players[me].name) || localStorage.getItem('killer_name') || 'Someone';
