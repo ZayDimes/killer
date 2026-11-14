@@ -1654,18 +1654,29 @@ const SOUNDS = {
   threeloss: () => { [392, 370, 349, 262].forEach((f, i) => tone(f, i * .3, .35, 'sawtooth', .18)); }
 };
 // A real voice says "Nice" (9 on a 6)
+// Pick a male English voice (iPhone has Aaron, Arthur, Daniel, Fred, Gordon…)
+const MALE = ['Aaron', 'Arthur', 'Gordon', 'Daniel', 'Fred', 'Alex', 'Ralph', 'Albert', 'Tom', 'Oliver', 'Rishi', 'Reed', 'Rocko', 'Eddy', 'Google UK English Male', 'Microsoft Guy', 'Microsoft David', 'Microsoft Mark'];
+let voiceCache = null;
+function deepVoice() {
+  if (voiceCache) return voiceCache;
+  const vs = (speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
+  for (const n of MALE) { const v = vs.find(x => x.name.split(' (')[0] === n || x.name.startsWith(n)); if (v) return (voiceCache = v); }
+  return null;
+}
+try { speechSynthesis.onvoiceschanged = () => { voiceCache = null; deepVoice(); }; } catch (e) {}
 function say(text, rate, pitch) {
   try {
     if (!window.speechSynthesis) return;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US'; u.rate = rate; u.pitch = pitch; u.volume = 1;
+    const v = deepVoice(); if (v) { u.voice = v; u.lang = v.lang; }
     speechSynthesis.speak(u);
   } catch (e) {}
 }
 function sfx(n) {
-  if (soundOn && n === 'nice') return say('Nice', .85, .9);
-  if (soundOn && n === 'nicebig') return say('Nice!', .6, .8);       // bigger play: slower, cooler "niiice"
+  if (soundOn && n === 'nice') return say('Nice', .75, .1);   // deep male voice
+  if (soundOn && n === 'nicebig') return say('Nice!', .55, .1);       // bigger play: slower, cooler "niiice"
   if (!soundOn || !actx || !SOUNDS[n]) return;
   try {
     if (actx.state === 'interrupted' || actx.state === 'closed') { resetAudio(); return; }   // next tap brings it back
