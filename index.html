@@ -262,10 +262,12 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .pill.gold{background:#ffd23f;color:#222;border-color:#ffd23f;font-size:16px}
 @media (orientation:landscape) and (max-height:520px){
   #app{max-width:1000px}
-  .glay{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .glay{display:grid;grid-template-columns:57fr 43fr;gap:16px;align-items:start}
+  .gR{padding-left:10px;min-width:0}
+  .handhead .minibtns button{font-size:11px;padding:5px 7px}
   .gL .ring{margin-top:34px;margin-bottom:30px}
   .up{font-size:18px;margin-top:4px}.up.mine{font-size:22px}
-  .mainbtns{left:50%;right:0;max-width:none;margin:0;padding:6px 12px calc(6px + env(safe-area-inset-bottom))}
+  .mainbtns{left:57%;right:0;max-width:none;margin:0;padding:6px 12px calc(6px + env(safe-area-inset-bottom))}
   .mainbtns button{font-size:20px;padding:12px 8px}
   body.hasbar{padding-bottom:70px}
   #hand .card{width:34px;height:50px;font-size:14px}
@@ -1351,7 +1353,8 @@ function renderGame(g) {
   // Phone sideways: table on the left, your hand on the right, and the table keeps its shape
   const LAND = window.matchMedia && matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
   const ringH = LAND ? Math.max(240, Math.min(300, (window.innerHeight || 390) - 80)) : N >= 6 ? 330 : 300;
-  const avail = LAND ? (Math.min(window.innerWidth || 844, 1000) - 48) / 2 : Math.min(window.innerWidth || 390, 700) - 32;
+  const appW = ($('#app') && $('#app').clientWidth) || Math.min(window.innerWidth || 844, 1000);   // real width (iPhone notch areas excluded)
+  const avail = LAND ? (appW - 48) * .57 - 26 : Math.min(window.innerWidth || 390, 700) - 32;   // sideways: leave room for the chairs
   const ringW = Math.round(Math.min(avail, ringH * 1.55));
   const seats = g.order.map((id, i) => {
     const k = (i - base + N) % N, deg = 90 + 360 * k / N, a = deg * Math.PI / 180;
@@ -1480,7 +1483,12 @@ function renderGame(g) {
   { const m = $('.mid'), main = m && m.querySelector(':scope > .cards');
     if (main) { const mr = m.getBoundingClientRect(), cr = main.getBoundingClientRect();
       const off = (cr.top + cr.height / 2) - (mr.top + mr.height / 2);
-      m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px))`; } }
+      m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px))`;
+      // Still bumping into a player (small screens, sideways)? Shrink the middle a little until it fits
+      m.style.transformOrigin = `50% ${(cr.top - mr.top + cr.height / 2).toFixed(1)}px`;
+      const boxes = [...document.querySelectorAll('.ring .seat, .ring .hold')].map(e => e.getBoundingClientRect());
+      const bumps = () => [...m.children].some(c => { const a = c.getBoundingClientRect(); return boxes.some(b => a.left < b.right + 3 && b.left < a.right + 3 && a.top < b.bottom + 3 && b.top < a.bottom + 3); });
+      for (let sc = .95; sc >= .7 && bumps(); sc -= .05) m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px)) scale(${sc.toFixed(2)})`; } }
   // Auto-pass only when there is truly no legal play (with a countdown)
   if (g.paused) { stopNag(); autoKey = ''; }
   if (autoPassOn && myTurn && !g.paused && g.table && !hasPlay(hand, g.table, g.locked)) {
