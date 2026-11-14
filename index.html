@@ -1061,8 +1061,9 @@ function goldFor(g, id) {
   const won = g.finished[0] === id, out = [];
   if (friends) { out.push(['Played with friends', 5]); if (won) out.push(['Beat your friends', 25]); }
   else if (won) {
-    const lv = Math.max(...g.order.filter(x => g.bots[x]).map(x => ({ easy: 2, medium: 5 })[g.bots[x]] || 10));
-    out.push(['Beat the CPUs', lv]);
+    const bots = g.order.filter(x => g.bots[x]);                   // each CPU you beat pays: Easy 2, Medium 5, Hard 10
+    const lv = bots.reduce((a, x) => a + (({ easy: 2, medium: 5 })[g.bots[x]] || 10), 0);
+    out.push(['Beat ' + bots.length + ' CPU' + (bots.length > 1 ? 's' : ''), lv]);
   }
   const st = g.streaks[id] || {};
   if (won && st.w && st.w % 3 === 0) out.push([st.w + ' in a row bonus', 20]);
@@ -1097,7 +1098,7 @@ function shopHTML() {
     return `<div class="skin ${on ? 'on' : ''}"><div class="cards">${sample(id)}</div><div class="nm">${name}</div>${btn}</div>`;
   };
   return `<details class="shopd" ${shopOpen ? 'open' : ''} ontoggle="shopOpen=this.open"><summary><h3 style="margin:0"><i class="brick"></i> Card Shop <span class="small shopx"></span></h3><span class="goldtag"><i class="brick"></i> <span class="goldnum">${profile.gold}</span></span></summary>
-    <p class="small" style="margin:6px 0 0">Win to earn gold: CPUs Easy 2 · Medium 5 · Hard 10. Friends: 5 per game, 30 for a win. +20 every 3 in a row.</p>
+    <p class="small" style="margin:6px 0 0">Beat CPUs: each one pays Easy 2 · Medium 5 · Hard 10 (more CPUs = more gold). Friends: 5 per game, 30 for a win. +20 every 3 in a row.</p>
     <div class="shopcat"><h4>Classic</h4><div class="skins">${tile('classic', 'Classic', 0)}</div></div>
     ${SKIN_CATS.map(([cat, list]) => `<div class="shopcat"><h4>${cat}</h4><div class="skins">${list.map(([id, n, pr]) => tile(id, n, pr)).join('')}</div></div>`).join('')}
     <details style="margin-top:12px"><summary class="small">New phone? Restore your gold</summary>
