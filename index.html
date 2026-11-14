@@ -1289,7 +1289,7 @@ function renderGame(g) {
       ${room.host === me ? `<button class="danger" onclick="endGame()">End game</button>` : `<button class="danger" onclick="dropOut()">${spectator ? 'Leave the chair' : 'Drop out'}</button>`}
       ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
-      <button class="sec" onclick="toggleChime()">Turn ding: ${chimeOn ? 'ON 🔔' : 'OFF 🔕'}</button>
+      <button class="sec" onclick="toggleChime()">Turn ding/flash: ${chimeOn ? 'ON 🔔' : 'OFF 🔕'}</button>
     </div>
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
     <div id="gonl">${gameOnlineHTML()}</div>
@@ -1544,7 +1544,8 @@ function sfx(n) {
 }
 
 function turnFlash() {
-  if (chimeOn) sfx('turn');                                   // turn ding can be off while other sounds stay on
+  if (!chimeOn) return;                                       // turn ding + flash off; other sounds stay on
+  sfx('turn');
   const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
   clearTimeout(turnFlash.t); turnFlash.t = setTimeout(() => f.classList.remove('on'), 1300);
   if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
