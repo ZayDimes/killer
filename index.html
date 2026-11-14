@@ -45,6 +45,8 @@ button:disabled{opacity:.35}
 .btns button{flex:1}
 #fx{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font-weight:900;color:#ffd23f;text-shadow:0 0 20px #000;text-align:center;z-index:50;padding:20px}
 #fx.big{background:#000d;z-index:70}
+#fx.kill{background:radial-gradient(ellipse at 50% 50%,#2e0000 0%,#0a0000 50%,#000 80%);z-index:70}
+#fx.kill>div:first-child{font-family:Impact,'Arial Black',sans-serif;font-weight:900;letter-spacing:3px;background:linear-gradient(180deg,#ff5050 0%,#e00000 45%,#8a0000 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:2.5px #000;text-shadow:none;filter:drop-shadow(0 4px 0 #000) drop-shadow(0 0 14px #ff0000b0)}
 #fx .sub{font-size:28px;color:#fff;margin-top:8px}
 #flash{position:fixed;inset:0;pointer-events:none;background:transparent;z-index:40;display:none}
 #flash.on{display:block;animation:flash 1.2s ease-out forwards}
@@ -1524,7 +1526,7 @@ const FX = {
   kkk:     { text: '…hmm 🧐', size: 72, ms: 2600 },
   devil:   { text: '😈 666 😈', size: 80, ms: 1800 },
   bomb:    { text: '💣 BOMB 💣', size: 80, ms: 2000, shake: true },
-  killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2400, shake: true },
+  killer:  { text: '♠♣ KILLER ♦♥', size: 84, ms: 2400, shake: true, cls: 'kill' },
   win:       { text: x => '👑 ' + esc(x.name || '') + ' WINS!', size: 54, ms: 1500, backdrop: true },
   threewin:  { text: x => '🔥 ' + esc(x.name || '') + ' 🔥', sub: '3 IN A ROW! Hall of Fame material!', size: 54, ms: 1700, shake: true, backdrop: true },
   threeloss: { text: x => '💀 ' + esc(x.name || '') + ' 💀', sub: '3 LOSSES IN A ROW!', size: 54, ms: 1600, shake: true, backdrop: true }
@@ -1539,6 +1541,7 @@ function showFx(type, x) {
   n.innerHTML = `<div style="font-size:${f.size}px">${text}</div>${sub ? `<div class="sub">${sub}</div>` : ''}`;
   n.style.display = 'flex';
   n.classList.toggle('big', !!f.backdrop);
+  n.classList.toggle('kill', f.cls === 'kill');
   const big = n.firstElementChild; big.style.whiteSpace = 'nowrap';
   let fs = f.size;
   while (big.scrollWidth > n.clientWidth - 30 && fs > 18) { fs -= 3; big.style.fontSize = fs + 'px'; }   // always one line
@@ -1546,7 +1549,7 @@ function showFx(type, x) {
   if (f.backdrop) { const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); setTimeout(() => fl.classList.remove('on'), 1300); }
   if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
-  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; n.classList.remove('big'); document.body.classList.remove('shake'); }, f.ms);
+  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; n.classList.remove('big', 'kill'); document.body.classList.remove('shake'); }, f.ms);
 }
 // Flash + ding on your turn: right away, again after 20s, then every 10s. Tapping a card also pushes the next one to 20s.
 let nagTimer = null;
