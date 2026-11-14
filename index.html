@@ -235,6 +235,11 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .sk-sapphire{--red:#c4002b;--blk:#0f2a6b;--sh:inset 0 0 0 2px #1f4bb8,0 0 6px #d4af3788;--back:repeating-linear-gradient(45deg,#1f4bb8 0 2px,#d4af37 2px 3px)}
 .sk-emerald{--red:#b3122e;--blk:#0c4a2a;--sh:inset 0 0 0 2px #128a4a,0 0 6px #d4af3788;--back:repeating-linear-gradient(45deg,#128a4a 0 2px,#d4af37 2px 3px)}
 .sk-crown{--bg:linear-gradient(160deg,#fff6c2,#ffd23f 45%,#c98a00);--blk:#3b2500;--red:#8b0000;--bd:#fff6c2;--sh:0 0 10px #ffd23f;--back:linear-gradient(160deg,#fff6c2,#ffd23f,#c98a00)}
+.shopd>summary{display:flex;justify-content:space-between;align-items:center;list-style:none;cursor:pointer}
+.shopd>summary::-webkit-details-marker{display:none}
+.shopd[open]>summary{margin-bottom:6px}
+.shopx::after{content:'▼ tap to open'}
+.shopd[open] .shopx::after{content:'▲'}
 .goldtag{display:inline-flex;align-items:center;gap:4px;background:#00000040;border:1px solid #ffd23f66;border-radius:999px;padding:4px 12px;font-weight:800;color:#ffd23f}
 .shopcat h4{margin:14px 0 6px;color:#ffd23f;font-size:14px;letter-spacing:1px;text-transform:uppercase}
 .skins{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
@@ -1029,7 +1034,7 @@ const SKIN_CATS = [
   ['👑 Royal', [['ruby', 'Ruby', 350], ['sapphire', 'Sapphire', 400], ['emerald', 'Emerald', 450], ['crown', 'Gold Crown', 500]]]
 ];
 const SKINS = {}; SKIN_CATS.forEach(([, list]) => list.forEach(([id, name, price]) => SKINS[id] = { name, price }));
-let profile = { gold: 0, owned: {}, skin: 'classic' };
+let profile = { gold: 0, owned: {}, skin: 'classic' }, shopOpen = false;   // shop starts minimized
 const profRef = () => db.ref('rooms/_profiles/' + me);
 const skinOf = id => { if (id === me) return profile.skin; const p = room && room.players && room.players[id]; return (p && p.skin) || 'classic'; };
 const skinCls = sk => sk && SKINS[sk] ? 'sk sk-' + sk : '';
@@ -1089,14 +1094,14 @@ function shopHTML() {
       : `<button onclick="buySkin('${id}')" ${profile.gold < price ? 'disabled' : ''}>🪙 ${price}</button>`;
     return `<div class="skin ${on ? 'on' : ''}"><div class="cards">${sample(id)}</div><div class="nm">${name}</div>${btn}</div>`;
   };
-  return `<div class="row" style="justify-content:space-between"><h3 style="margin:0">🪙 Card Shop</h3><span class="goldtag">🪙 <span class="goldnum">${profile.gold}</span></span></div>
+  return `<details class="shopd" ${shopOpen ? 'open' : ''} ontoggle="shopOpen=this.open"><summary><h3 style="margin:0">🪙 Card Shop <span class="small shopx"></span></h3><span class="goldtag">🪙 <span class="goldnum">${profile.gold}</span></span></summary>
     <p class="small" style="margin:6px 0 0">Win to earn gold: CPUs Easy 2 · Medium 5 · Hard 10. Friends: 5 per game, 30 for a win. +20 every 3 in a row.</p>
     <div class="shopcat"><h4>Classic</h4><div class="skins">${tile('classic', 'Classic', 0)}</div></div>
     ${SKIN_CATS.map(([cat, list]) => `<div class="shopcat"><h4>${cat}</h4><div class="skins">${list.map(([id, n, pr]) => tile(id, n, pr)).join('')}</div></div>`).join('')}
     <details style="margin-top:12px"><summary class="small">New phone? Restore your gold</summary>
       <p class="small">Your code: <b style="user-select:all">${me}</b> (save it). On a new phone, enter it here:</p>
       <div class="row"><input id="restore" placeholder="Restore code" style="flex:1;min-width:120px;margin:0"><button class="sec" onclick="restoreCode()" style="margin:0">Restore</button></div>
-    </details>`;
+    </details></details>`;
 }
 function restoreCode() {
   const c = ($('#restore').value || '').trim();
