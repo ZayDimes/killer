@@ -193,6 +193,8 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .seat.champ{box-shadow:0 0 0 2px #ffd23f}
 .seat .crown{top:-12px;left:-4px;transform:rotate(-20deg);font-size:18px}
 .seat .kick{font-size:10px;padding:0 5px;margin:0 0 0 2px;border-radius:5px}
+.setbox{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;background:#00000030;border-radius:12px;padding:10px;margin:8px auto 0;max-width:420px}
+.setbox button{font-size:13px;padding:8px 12px;margin:0}
 .gonl{background:#00000030;border-radius:12px;padding:8px 12px;margin:8px auto 0;max-width:420px}
 .gonl .onrow{font-size:14px;padding:4px 0}
 .gonl .onrow:last-child{border-bottom:0}
@@ -421,6 +423,7 @@ let me = localStorage.getItem('killer_me');
 if (!me) { me = Math.random().toString(36).slice(2, 10); localStorage.setItem('killer_me', me); }
 let roomCode = localStorage.getItem('killer_room');
 let room = null, sel = new Set(), lastFx = null, lastTurnKey = null, autoKey = '', flashTimer;
+let setOpen = false;                                           // in-game settings start minimized
 let autoPassOn = localStorage.getItem('killer_autopass') !== 'off';   // your own setting
 function toggleAutoPass() { autoPassOn = !autoPassOn; try { localStorage.setItem('killer_autopass', autoPassOn ? 'on' : 'off'); } catch (e) {} autoKey = ''; render(); }
 let groups = [], groupKey = '';   // your own card groupings (only on your device)
@@ -1443,10 +1446,13 @@ function renderGame(g) {
     <div class="row smallrow" style="margin-top:14px;justify-content:center">
       ${room.host === me ? `<button class="danger" onclick="endGame()">End game</button>` : `<button class="danger" onclick="dropOut()">${spectator ? 'Leave the chair' : 'Drop out'}</button>`}
       ${canPause(g) ? `<button class="sec" onclick="togglePause()">⏸ Pause</button>` : ''}
+      <button class="sec" onclick="setOpen=!setOpen;render()">⚙️ Settings ${setOpen ? '▲' : '▼'}</button>
+    </div>
+    ${setOpen ? `<div class="setbox">
       ${spectator ? '' : `<button class="sec" onclick="toggleAutoPass()">Auto-pass: ${autoPassOn ? 'ON' : 'OFF'}</button>`}
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
       <button class="sec" onclick="toggleChime()">Turn ding/flash: ${chimeOn ? 'ON 🔔' : 'OFF 🔕'}</button>
-    </div>
+    </div>` : ''}
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
     <div id="gonl">${gameOnlineHTML()}</div>
     ${chair}${over}${g.paused && g.phase !== 'over' ? `<div class="overlay"><div class="box"><h2>⏸ Paused</h2><p class="small">The CPUs are waiting on you.</p><button class="full" onclick="togglePause()">▶ Resume</button></div></div>` : ''}`;
