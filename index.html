@@ -1446,6 +1446,10 @@ function renderGame(g) {
   if (autoPassOn && myTurn && !g.paused && g.table && !hasPlay(hand, g.table, g.locked)) {
     const k = g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
     if (autoKey !== k) { autoKey = k; autoDeadline = Date.now() + 5000; stopNag(); setTimeout(() => { const n = room && room.game; if (autoPassOn && n && !n.paused && n.turn === me && n.log === g.log) pass(true); }, 5000); }
+  } else if (!autoPassOn && myTurn && !g.paused && g.table && hand.length === 1 && g.table.c.length >= 2) {
+    // Auto-pass is off, but 1 card can never beat a pair or bigger: pass for you after 90s
+    const k = '90|' + g.turn + '|' + JSON.stringify(g.table.c) + '|' + (g.log || '');
+    if (autoKey !== k) { autoKey = k; autoDeadline = Date.now() + 90000; setTimeout(() => { const n = room && room.game; if (autoKey === k && n && !n.paused && n.turn === me && n.log === g.log) pass(true); }, 90000); }
   } else autoDeadline = 0;
   paintCountdown();
 
@@ -1517,7 +1521,7 @@ let autoDeadline = 0;
 function paintCountdown() {
   const el = $('#apcount'); if (!el) return;
   const left = Math.ceil((autoDeadline - Date.now()) / 1000);
-  const t = autoDeadline && left > 0 ? `No play — auto-passing in ${left}…` : '';
+  const t = autoDeadline && left > 0 ? `No play — auto-passing in ${left > 60 ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : left}…` : '';
   if (el.textContent !== t) el.textContent = t;
 }
 setInterval(paintCountdown, 250);
