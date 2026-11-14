@@ -181,7 +181,8 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .mid .justby{margin:0;font-size:14px}
 .mid .tag{font-size:11px;line-height:1.1;letter-spacing:.5px}
 .before{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;line-height:1.2;max-width:100%}
-.mid.wide .before{flex-direction:row;gap:6px}
+.mid.wide .before{flex-direction:row;gap:4px}
+.mid.wide .before .lbl{font-size:10px;padding:1px 5px;white-space:nowrap}
 .before .lbl{background:#0a4a2a;color:#ffffffb0;border-radius:8px;padding:1px 6px;position:relative;z-index:1}
 .before .cards{opacity:.7}
 .before .card{width:var(--mw,22px);height:calc(var(--mw,22px) * 1.45);font-size:calc(var(--mw,22px) * .48);border-width:1px;box-shadow:none}
@@ -1337,7 +1338,14 @@ function renderGame(g) {
     return chairEl + backs + `<div class="seat ${id === g.turn && g.phase === 'play' ? 'turn' : ''} ${place >= 0 ? 'out' : ''} ${id === g.champ ? 'champ' : ''}" style="${pos(0, 0)}">
       ${id === g.champ ? '<div class="crown">👑</div>' : ''}<div class="n">${esc(g.names[id])}${id === me ? ' (you)' : ''}</div><div>${status}${room.host === me && id !== me ? ` <button class="kick" onclick="kick('${id}')">✕</button>` : ''}</div><div class="tally">🏆${t.w || 0} 💀${t.l || 0}${badge}</div></div>`;
   }).join('');
-  const space = N >= 3 ? ringW - 2 * 102 : ringW - 70;          // room left in the middle of the table
+  const space = N >= 3 ? ringW - 2 * 106 : ringW - 70;          // room left in the middle of the table
+  // The played cards sit on the table's middle line, so they can use more width when no seat is at that height
+  let half = ringW / 2 - 34;
+  for (let k = 1; k < N; k++) {
+    const an = (90 + 360 * k / N) * Math.PI / 180, cy = (ringH / 2 - 30) * Math.sin(an);
+    if (Math.abs(cy) < 60) half = Math.min(half, Math.abs((ringW / 2 - 56) * Math.cos(an)) - 52);
+  }
+  const rowSpace = Math.max(space, 2 * half);
   const before = (pl, title) => {
     const c = arr(pl.c), mw = Math.max(14, Math.min(22, Math.floor((space - 80) / c.length) - 2));
     return `<div class="before" style="--mw:${mw}px"><div class="lbl">${title}${N >= 5 || N === 2 ? ' · ' : '<br>'}${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x, '', skinOf(pl.by))).join('')}</div></div>`;
@@ -1351,7 +1359,7 @@ function renderGame(g) {
   } else if (g.table) {
     center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
       ${g.under ? before(g.under, 'Before') : ''}
-      <div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, space)}px">${g.table.c.map(c => cardHTML(c, '', skinOf(g.table.by))).join('')}</div>
+      <div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, rowSpace)}px">${g.table.c.map(c => cardHTML(c, '', skinOf(g.table.by))).join('')}</div>
       <div class="justby">by <span>${esc(g.names[g.table.by])}</span></div>`;
   } else {
     center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
