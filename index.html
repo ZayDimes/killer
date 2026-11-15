@@ -316,6 +316,17 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .skin .nm{font-weight:800;font-size:14px}
 .skin button{font-size:13px;padding:7px 10px;width:100%;margin:4px 0 0}
 .pill.gold{background:#ffd23f;color:#222;border-color:#ffd23f;font-size:16px}
+/* iPad sideways */
+body.tabland #app{max-width:1400px}
+body.tabland .glay{display:grid;grid-template-columns:55fr 45fr;gap:20px;align-items:start}
+body.tabland .gR{padding-left:10px;min-width:0}
+body.big.tabland #hand .card{width:72px;height:104px;font-size:29px}
+body.tabland .gL .ring{margin-top:40px;margin-bottom:34px}
+body.tabland .up{margin-top:6px}
+body.tabland .mainbtns{left:55%;right:0;max-width:none;margin:0;padding:8px 14px calc(8px + env(safe-area-inset-bottom))}
+body.tabland .mainbtns button{font-size:24px;padding:16px 8px}
+body.tabland.hasbar{padding-bottom:96px}
+body.tabland #chat,body.tabland #rules{display:none!important}
 @media (orientation:landscape) and (max-height:520px){
   #app{max-width:1000px}
   .glay{display:grid;grid-template-columns:57fr 43fr;gap:16px;align-items:start}
@@ -1532,9 +1543,11 @@ function renderGame(g) {
   const LAND = window.matchMedia && matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
   const BIG = bigOn();
   document.body.classList.toggle('big', BIG);
-  const ringH = LAND ? Math.max(240, Math.min(300, (window.innerHeight || 390) - 80)) : BIG ? (N >= 6 ? 470 : 430) : N >= 6 ? 330 : 300;
+  const TAB = BIG && !LAND && (window.innerWidth || 0) > (window.innerHeight || 0);   // iPad sideways: table left, hand right, no chat
+  document.body.classList.toggle('tabland', TAB);
+  const ringH = LAND ? Math.max(240, Math.min(300, (window.innerHeight || 390) - 80)) : TAB ? Math.max(340, Math.min(500, (window.innerHeight || 800) - 170, ((($('#app') && $('#app').clientWidth) || 1100) - 48) * .55 / 1.3)) : BIG ? (N >= 6 ? 470 : 430) : N >= 6 ? 330 : 300;
   const appW = ($('#app') && $('#app').clientWidth) || Math.min(window.innerWidth || 844, 1000);   // real width (iPhone notch areas excluded)
-  const avail = LAND ? (appW - 48) * .57 - 26 : Math.min(window.innerWidth || 390, BIG ? 980 : 700) - 32;   // sideways: leave room for the chairs
+  const avail = LAND ? (appW - 48) * .57 - 26 : TAB ? (appW - 48) * .55 - 30 : Math.min(window.innerWidth || 390, BIG ? 980 : 700) - 32;   // sideways: leave room for the chairs
   const ringW = Math.round(Math.min(avail, ringH * 1.55));
   const seats = g.order.map((id, i) => {
     const k = (i - base + N) % N, deg = 90 + 360 * k / N, a = deg * Math.PI / 180;
