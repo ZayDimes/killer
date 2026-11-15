@@ -1146,7 +1146,7 @@ const skinCls = sk => sk && SKINS[sk] ? 'sk sk-' + sk : '';
 function listenProfile() {
   profRef().on('value', s => {
     const v = s.val() || {};
-    profile = { gold: v.gold || 0, owned: v.owned || {}, skin: v.skin && SKINS[v.skin] ? v.skin : 'classic', lastAward: v.lastAward };
+    profile = { gold: v.gold || 0, owned: v.owned || {}, all: !!v.all, skin: v.skin && SKINS[v.skin] ? v.skin : 'classic', lastAward: v.lastAward };
     paintGold();
     // One-time news: shown once per player, ever (remembered on their profile, not just this phone)
     const NEWS = 'maine1';
@@ -1204,7 +1204,7 @@ function buySkin(id) {
   const sk = SKINS[id]; if (!sk) return;
   profRef().transaction(p => {
     p = p || {}; p.owned = p.owned || {};
-    if (p.owned[id]) { p.skin = id; return p; }
+    if (p.owned[id] || p.all) { p.skin = id; return p; }
     if ((p.gold || 0) < sk.price) return;
     p.gold -= sk.price; p.owned[id] = true; p.skin = id; return p;
   }, (e, ok) => { if (!ok && !e) flash('Not enough gold'); else if (ok) flash(sk.name + ' equipped ✅'); });
@@ -1213,7 +1213,7 @@ function equipSkin(id) { profRef().child('skin').set(id); }
 function shopHTML() {
   const sample = sk => [44, 51, 34].map(c => cardHTML(c, '', sk)).join('');   // A♠, 2♥, J♦
   const tile = (id, name, price) => {
-    const own = id === 'classic' || !price || profile.owned[id], on = profile.skin === id;
+    const own = id === 'classic' || !price || profile.all || profile.owned[id], on = profile.skin === id;
     const btn = on ? '<button disabled>Equipped</button>'
       : own ? `<button class="sec" onclick="${id === 'classic' ? "equipSkin('classic')" : `buySkin('${id}')`}">Use</button>`
       : `<button onclick="buySkin('${id}')" ${profile.gold < price ? 'disabled' : ''}><i class="brick"></i> ${price.toLocaleString()}</button>`;
@@ -1230,6 +1230,7 @@ function shopHTML() {
       <div class="small" style="margin-top:4px">More CPUs at the table = more gold.</div></div>
     <div class="shopcat"><h4>Free</h4><div class="skins">${tile('classic', 'Classic', 0)}${tile('maine', 'Maine Black Bears', 0)}</div></div>
     ${SKIN_CATS.map(([cat, list]) => `<div class="shopcat"><h4>${cat}</h4><div class="skins">${list.map(([id, n, pr]) => tile(id, n, pr)).join('')}</div></div>`).join('')}
+    ${codeClaimed ? '' : `<div class="row" style="margin-top:12px"><input id="ucode" placeholder="Have a code?" autocomplete="off" style="flex:1;min-width:120px;margin:0;text-transform:uppercase"><button class="sec" onclick="redeemCode()" style="margin:0">Redeem</button></div>`}
     <p class="small" style="margin:12px 0 0">📱 Want your gold and skins on your iPad too? Use <b>Play on another device</b> on the home screen.</p>
     </details>`;
 }
@@ -1268,6 +1269,21 @@ function useLinkCode() {
       localStorage.setItem('killer_me', L.id); localStorage.setItem('killer_name', L.name);
       setTimeout(() => location.reload(), 300);
     }, 'Link');
+  });
+}
+// ---------- One-time code: unlocks every skin for one player, then the box disappears for everyone ----------
+const UNLOCK_HASH = '6cd77e8ab966204cb192637787401ef889585454a1160c8d288ebe91d178fe7e';
+let codeClaimed = true;                                     // hidden until we know nobody has used it
+try { db.ref('rooms/_unlock').on('value', s => { codeClaimed = !!s.val(); if ($('#shop')) $('#shop').innerHTML = shopHTML(); }); } catch (e) {}
+async function redeemCode() {
+  const c = ($('#ucode').value || '').trim().toUpperCase();
+  if (!c) return;
+  let h = '';
+  try { const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(c)); h = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) {}
+  if (h !== UNLOCK_HASH) return flash('That code doesn\'t work');
+  db.ref('rooms/_unlock').transaction(cur => cur ? undefined : { by: me, t: Date.now() }, (e, ok) => {
+    if (!ok) return flash('That code was already used');
+    profRef().child('all').set(true).then(() => flash('🎉 Every card skin unlocked!'));
   });
 }
 function restoreCode() {
