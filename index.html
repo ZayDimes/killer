@@ -1113,7 +1113,7 @@ function goldFor(g, id) {
   if (!g.endInfo || g.bots[id] || !g.order.includes(id)) return null;
   const friends = g.order.some(x => x !== id && !g.bots[x]);
   const won = g.finished[0] === id, out = [];
-  if (friends) { out.push(['Played with friends', 5]); if (won) out.push(['Beat your friends', 25]); }
+  if (friends) { out.push(['Played with friends', 10]); if (won) out.push(['Beat your friends', 25]); }
   else if (won) {
     const bots = g.order.filter(x => g.bots[x]);                   // each CPU you beat pays: Easy 2, Medium 5, Hard 10
     const lv = bots.reduce((a, x) => a + (({ easy: 2, medium: 5 })[g.bots[x]] || 10), 0);
@@ -1156,8 +1156,8 @@ function shopHTML() {
       <div class="er"><span>🤖 Beat an <b>Easy</b> CPU</span><b><i class="brick"></i> 2 each</b></div>
       <div class="er"><span>🤖 Beat a <b>Medium</b> CPU</span><b><i class="brick"></i> 5 each</b></div>
       <div class="er"><span>🤖 Beat a <b>Hard</b> CPU</span><b><i class="brick"></i> 10 each</b></div>
-      <div class="er"><span>👥 Play with friends</span><b><i class="brick"></i> 5</b></div>
-      <div class="er"><span>🏆 Beat your friends</span><b><i class="brick"></i> 30</b></div>
+      <div class="er"><span>👥 Play with friends</span><b><i class="brick"></i> 10</b></div>
+      <div class="er"><span>🏆 Beat your friends</span><b><i class="brick"></i> 35</b></div>
       <div class="er"><span>🔥 Every 3 wins in a row</span><b>+<i class="brick"></i> 20</b></div>
       <div class="small" style="margin-top:4px">More CPUs at the table = more gold.</div></div>
     <div class="shopcat"><h4>Classic</h4><div class="skins">${tile('classic', 'Classic', 0)}</div></div>
