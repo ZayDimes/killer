@@ -1522,8 +1522,8 @@ function renderGame(g) {
       // Still bumping into a player (small screens, sideways)? Shrink the middle a little until it fits
       m.style.transformOrigin = `50% ${(cr.top - mr.top + cr.height / 2).toFixed(1)}px`;
       const boxes = [...document.querySelectorAll('.ring .seat, .ring .hold')].map(e => e.getBoundingClientRect());
-      const bumps = () => [...m.children].some(c => { const a = c.getBoundingClientRect(); return boxes.some(b => a.left < b.right + 3 && b.left < a.right + 3 && a.top < b.bottom + 3 && b.top < a.bottom + 3); });
-      for (let sc = .95; sc >= .7 && bumps(); sc -= .05) m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px)) scale(${sc.toFixed(2)})`; } }
+      const bumps = () => [...m.children].some(c => { const a = c.getBoundingClientRect(); return boxes.some(b => a.left < b.right + 8 && b.left < a.right + 8 && a.top < b.bottom + 8 && b.top < a.bottom + 8); });   // keep at least 8px of clear space
+      for (let sc = .95; sc >= .55 && bumps(); sc -= .05) m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px)) scale(${sc.toFixed(2)})`; } }
   // Auto-pass only when there is truly no legal play (with a countdown)
   if (g.paused) { stopNag(); autoKey = ''; }
   if (autoPassOn && myTurn && !g.paused && g.table && !hasPlay(hand, g.table, g.locked)) {
