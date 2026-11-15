@@ -51,7 +51,7 @@ button:disabled{opacity:.35}
 #flash{position:fixed;inset:0;pointer-events:none;background:transparent;z-index:40;display:none}
 #flash.on{display:block;animation:flash 1.2s ease-out forwards}
 @keyframes flash{0%{background:#ffd23f00}15%{background:#ffd23f8c}40%{background:#ffd23f1a}60%{background:#ffd23f73}100%{background:#ffd23f00}}
-body.shake{animation:shake .7s}
+.shake{animation:shake .7s}
 @keyframes shake{0%,100%{transform:translate(0,0)}10%{transform:translate(-14px,6px)}20%{transform:translate(12px,-8px)}30%{transform:translate(-10px,10px)}40%{transform:translate(14px,-4px)}50%{transform:translate(-8px,8px)}60%{transform:translate(10px,-10px)}70%{transform:translate(-6px,4px)}80%{transform:translate(6px,-6px)}90%{transform:translate(-3px,3px)}}
 .up{text-align:center;font-size:30px;font-weight:900;margin:10px 0 0;letter-spacing:1px}
 .up.mine{color:#ffd23f;font-size:38px}
@@ -1556,9 +1556,11 @@ function showFx(type, x) {
   while (big.scrollWidth > n.clientWidth - 30 && fs > 18) { fs -= 3; big.style.fontSize = fs + 'px'; }   // always one line
   n.animate([{ transform: 'scale(.85)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 250 });
   if (f.backdrop) { const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on'); setTimeout(() => fl.classList.remove('on'), 1300); }
-  if (f.shake) { document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake'); }
+  // Shake the table and your hand, not the whole page: shaking the page made the big text jump
+  const shakers = () => [$('.ring'), $('#hand')].filter(Boolean);
+  if (f.shake) shakers().forEach(el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); });
   if (navigator.vibrate) navigator.vibrate(f.shake ? [200, 80, 200] : 80);
-  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; n.classList.remove('big', 'kill'); document.body.classList.remove('shake'); }, f.ms);
+  clearTimeout(showFx.t); showFx.t = setTimeout(() => { n.style.display = 'none'; n.classList.remove('big', 'kill'); document.querySelectorAll('.shake').forEach(el => el.classList.remove('shake')); }, f.ms);
 }
 // Flash + ding on your turn: right away, again after 20s, then every 10s. Tapping a card also pushes the next one to 20s.
 let nagTimer = null;
