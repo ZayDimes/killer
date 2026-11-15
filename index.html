@@ -1959,7 +1959,7 @@ const SOUNDS = {
 };
 // A real voice says "Nice" (9 on a 6)
 // Pick a male English voice (iPhone has Aaron, Arthur, Daniel, Fred, Gordon…)
-const MALE = ['Aaron', 'Arthur', 'Gordon', 'Daniel', 'Fred', 'Alex', 'Ralph', 'Albert', 'Tom', 'Oliver', 'Rishi', 'Reed', 'Rocko', 'Eddy', 'Google UK English Male', 'Microsoft Guy', 'Microsoft David', 'Microsoft Mark'];
+const MALE = ['Ralph', 'Fred', 'Albert', 'Gordon', 'Arthur', 'Aaron', 'Daniel', 'Alex', 'Tom', 'Oliver', 'Rishi', 'Reed', 'Rocko', 'Eddy', 'Google UK English Male', 'Microsoft Guy', 'Microsoft David', 'Microsoft Mark'];
 let voiceCache = null;
 function deepVoice() {
   if (voiceCache) return voiceCache;
@@ -1968,10 +1968,13 @@ function deepVoice() {
   return null;
 }
 try { speechSynthesis.onvoiceschanged = () => { voiceCache = null; deepVoice(); }; } catch (e) {}
+let lastSay = 0;
 function say(text, rate, pitch) {
+  if (Date.now() - lastSay < 2500) return;                    // never say it twice for the same play
+  lastSay = Date.now();
   try {
     if (!window.speechSynthesis) return;
-    speechSynthesis.cancel();
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();   // iPhone can repeat a line after cancel(), so only cancel when needed
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US'; u.rate = rate; u.pitch = pitch; u.volume = 1;
     const v = deepVoice(); if (v) { u.voice = v; u.lang = v.lang; }
@@ -1979,8 +1982,8 @@ function say(text, rate, pitch) {
   } catch (e) {}
 }
 function sfx(n) {
-  if (soundOn && n === 'nice') return say('Nice', .75, .1);   // deep male voice
-  if (soundOn && n === 'nicebig') return say('Nice!', .55, .1);       // bigger play: slower, cooler "niiice"
+  if (soundOn && n === 'nice') return say('Nice', .7, 0);   // deepest male voice
+  if (soundOn && n === 'nicebig') return say('Nice!', .55, 0);       // bigger play: slower, cooler "niiice"
   if (!soundOn || !actx || !SOUNDS[n]) return;
   try {
     if (actx.state === 'interrupted' || actx.state === 'closed') { resetAudio(); return; }   // next tap brings it back
