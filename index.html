@@ -118,6 +118,8 @@ button.danger{background:#c94a4a;color:#fff}
 .table{min-height:116px;margin:8px 0 4px;padding:10px}
 .table .card{width:var(--cw,48px);height:calc(var(--cw,48px) * 1.45);font-size:calc(var(--cw,48px) * .42)}
 .table .cards.onerow{flex-wrap:nowrap}
+.mid>.cards.tworow{flex-wrap:wrap;justify-content:center;row-gap:3px}
+.mid>.cards.tworow .card{width:var(--cw);height:calc(var(--cw) * 1.45);font-size:calc(var(--cw) * .42);box-shadow:0 3px 8px #0006}
 .mid>.cards .card{width:var(--cw,44px);height:calc(var(--cw,44px) * 1.45);font-size:calc(var(--cw,44px) * .42);box-shadow:0 3px 8px #0006}
 .cards.onerow{flex-wrap:nowrap}
 .log{font-size:13px;min-height:16px}
@@ -185,9 +187,14 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .pausebtn{position:absolute;right:0;top:6px;z-index:5;width:40px;height:40px;padding:0;margin:0;border-radius:50%;font-size:18px;background:#00000055;color:#fff;border:1px solid #ffffff33}
 .mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:14px;z-index:4}
 .mid .justby{margin:0;font-size:14px}
+.mid .tagin{font-size:10px;letter-spacing:.3px;white-space:nowrap}
 .mid .tag{font-size:11px;line-height:1.1;letter-spacing:.5px}
 .before{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;line-height:1.2;max-width:100%}
 .mid.wide .before{flex-direction:row;gap:4px}
+.mid .before.stack{flex-direction:column;gap:2px}
+.before.stack .bw{display:none}
+.before.wrap .cards{flex-wrap:wrap;justify-content:center;max-width:calc((var(--mw) + 3px) * 3);row-gap:2px}
+.before.stack .lbl::before{content:'↩ '}
 .mid.wide .before .lbl{font-size:10px;padding:1px 5px;white-space:nowrap}
 .before .lbl{background:#0a4a2a;color:#ffffffb0;border-radius:8px;padding:1px 6px;position:relative;z-index:1}
 .before .cards{opacity:.85}
@@ -1190,6 +1197,13 @@ function restoreCode() {
 
 // ---------- Rendering ----------
 // Shrink table cards so a long play (bombs, runs) always fits on one row
+// Long plays (runs, bombs) go on two rows when one row would make the cards too small to read
+function playRow(cs, rowSpace, skin) {
+  const n = cs.length, one = tableCardW(n, rowSpace);
+  if (one >= 26 || n < 5) return `<div class="cards onerow" style="--cw:${one}px">${cs.map(c => cardHTML(c, '', skin)).join('')}</div>`;
+  const per = Math.ceil(n / 2), cw = Math.min(38, tableCardW(per, rowSpace));
+  return `<div class="cards tworow" style="--cw:${cw}px;max-width:${per * (cw + 3) + 2}px">${cs.map(c => cardHTML(c, '', skin)).join('')}</div>`;
+}
 function tableCardW(n, space) {
   return Math.max(16, Math.min(44, Math.floor(space / n) - 3));
 }
@@ -1421,7 +1435,7 @@ function renderGame(g) {
   const rowSpace = Math.max(space, 2 * half);
   const before = (pl, title) => {
     const c = arr(pl.c), mw = Math.max(16, Math.min(34, Math.floor((space - 80) / c.length) - 2));   // a bit bigger so skins read well
-    return `<div class="before" style="--mw:${mw}px"><div class="lbl">${title} · ${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x, '', skinOf(pl.by))).join('')}</div></div>`;
+    return `<div class="before" style="--mw:${mw}px"><div class="lbl"><span class="bw">${title} · </span>${esc(g.names[pl.by] || '')}</div><div class="cards onerow">${c.map(x => cardHTML(x, '', skinOf(pl.by))).join('')}</div></div>`;
   };
 
   let center;
@@ -1432,7 +1446,7 @@ function renderGame(g) {
   } else if (g.table) {
     center = `${g.locked ? '<div class="tag">SUITED RUNS ONLY</div>' : ''}
       ${g.under ? before(g.under, 'Before') : ''}
-      <div class="cards onerow" style="--cw:${tableCardW(g.table.c.length, rowSpace)}px">${g.table.c.map(c => cardHTML(c, '', skinOf(g.table.by))).join('')}</div>
+      ${playRow(g.table.c, rowSpace, skinOf(g.table.by))}
       <div class="justby">by <span>${esc(g.names[g.table.by])}</span></div>`;
   } else {
     center = `${g.prev && g.phase !== 'over' ? before(g.prev, 'Last round') : ''}
@@ -1514,16 +1528,48 @@ function renderGame(g) {
     </div></div>
     ${chair}${over}${g.paused && g.phase !== 'over' ? `<div class="overlay"><div class="box"><h2>⏸ Paused</h2><p class="small">The CPUs are waiting on you.</p><button class="full" onclick="togglePause()">▶ Resume</button></div></div>` : ''}`;
 
-  // Keep the cards just played in the exact middle of the table (extras sit above/below them)
-  { const m = $('.mid'), main = m && m.querySelector(':scope > .cards');
-    if (main) { const mr = m.getBoundingClientRect(), cr = main.getBoundingClientRect();
-      const off = (cr.top + cr.height / 2) - (mr.top + mr.height / 2);
-      m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px))`;
-      // Still bumping into a player (small screens, sideways)? Shrink the middle a little until it fits
-      m.style.transformOrigin = `50% ${(cr.top - mr.top + cr.height / 2).toFixed(1)}px`;
+  // Keep the cards just played in the exact middle of the table, and never let anything touch a player's box
+  { const m = $('.mid');
+    if (m) {
+      const main = m.querySelector(':scope > .cards'), bef = m.querySelector(':scope > .before'), tag = m.querySelector(':scope > .tag');
       const boxes = [...document.querySelectorAll('.ring .seat, .ring .hold')].map(e => e.getBoundingClientRect());
-      const bumps = () => [...m.children].some(c => { const a = c.getBoundingClientRect(); return boxes.some(b => a.left < b.right + 8 && b.left < a.right + 8 && a.top < b.bottom + 8 && b.top < a.bottom + 8); });   // keep at least 8px of clear space
-      for (let sc = .95; sc >= .55 && bumps(); sc -= .05) m.style.transform = `translate(-50%, calc(-50% - ${off.toFixed(1)}px)) scale(${sc.toFixed(2)})`; } }
+      const hit = el => { if (!el || el.style.visibility === 'hidden') return false; const a = el.getBoundingClientRect(); if (!a.width) return false;
+        return boxes.some(b => a.left < b.right + 8 && b.left < a.right + 8 && a.top < b.bottom + 8 && b.top < a.bottom + 8); };   // at least 8px of clear space
+      let S = 1;
+      const center = () => {                                   // the play sits dead center; S shrinks everything around it
+        m.style.transform = 'translate(-50%,-50%)'; m.style.transformOrigin = '50% 50%';
+        let base = 'translate(-50%,-50%)';
+        if (main) { const mr = m.getBoundingClientRect(), cr = main.getBoundingClientRect();
+          base = `translate(-50%, calc(-50% - ${((cr.top + cr.height / 2) - (mr.top + mr.height / 2)).toFixed(1)}px))`;
+          m.style.transformOrigin = `50% ${(cr.top - mr.top + cr.height / 2).toFixed(1)}px`; }
+        m.style.transform = S < 1 ? `${base} scale(${S.toFixed(2)})` : base;
+      };
+      const shrink = (c, floor = .5) => { c.style.transform = ''; for (let sc = .95; sc > floor - .01 && hit(c); sc -= .05) c.style.transform = `scale(${sc.toFixed(2)})`; return !hit(c); };
+      const core = [...m.children].filter(c => c !== bef && c !== tag);
+      // 1) The play (and "by …" / "leads" text): shrink only if it touches someone
+      center();
+      while (S > .5 && core.some(hit)) { S -= .05; center(); }
+      // 2) "Before"/"Last round": above, below, then stacked, then stacked with cards wrapped
+      if (bef) {
+        let ok = false;
+        for (const floor of [.8, .5])                         // first look for a spot where it stays big enough to read
+          for (const [ord, mode] of [['', 0], ['5', 0], ['', 1], ['5', 1], ['', 2], ['5', 2]]) {
+            if (ok) break;
+            bef.style.order = ord; bef.classList.toggle('stack', mode > 0); bef.classList.toggle('wrap', mode > 1); center();
+            if (shrink(bef, floor)) ok = true;
+          }
+        if (!ok) { bef.style.order = ''; bef.classList.remove('stack', 'wrap'); center(); bef.style.visibility = 'hidden'; }
+      }
+      // 3) "SUITED RUNS ONLY": above the play, else below it
+      if (tag) { let ok = false;
+        for (const ord of ['', '6']) { tag.style.order = ord; center(); if (shrink(tag) && !hit(bef)) { ok = true; break; } }
+        if (!ok) { tag.style.order = ''; center(); tag.style.visibility = 'hidden';
+          const by = m.querySelector(':scope > .justby');                       // no room above/below: tuck it into the "by …" line
+          if (by) { by.insertAdjacentHTML('beforeend', ' <span class="tag tagin">· SUITED ONLY</span>'); if (hit(by)) by.querySelector('.tagin').remove(); } } }
+      while (S > .5 && core.some(hit)) { S -= .05; center(); }     // moving the extras can shift the rest: check the play again
+      // 4) Final check: anything extra still touching a name is hidden, never drawn over it
+      for (const c of [bef, tag]) if (c && hit(c)) c.style.visibility = 'hidden';
+    } }
   // Auto-pass only when there is truly no legal play (with a countdown)
   if (g.paused) { stopNag(); autoKey = ''; }
   if (autoPassOn && myTurn && !g.paused && g.table && !hasPlay(hand, g.table, g.locked)) {
