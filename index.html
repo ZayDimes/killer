@@ -621,7 +621,8 @@ function doPlay(g, who, cards) {
     if (!g.table && p.k === 'bomb' && !(g.prev && arr(g.prev.c).some(x => rk(x) === TWO))) return 'Bombs can only be played on a 2';
     if (!canPlay(p, g.table, g.locked)) return 'That doesn\'t beat the table';
     const old = g.table;
-    const nice = !!old && p.c.every(c => rk(c) === NINE) && old.c.every(c => rk(c) === SIX) && p.k === old.k;
+    const base = old || (g.prev && g.prev.by === me ? { ...g.prev, c: arr(g.prev.c) } : null);   // everyone passed on your 6s, you lead 9s: still NICE
+    const nice = !!base && p.c.every(c => rk(c) === NINE) && base.c.every(c => rk(c) === SIX) && p.c.length === base.c.length;
     if (p.k === 'run' && p.suited) g.locked = true;
     g.hands[me] = hand.filter(c => !cards.includes(c));
     g.under = old ? { c: old.c, by: old.by } : null;   // the play this one beat
