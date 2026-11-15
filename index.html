@@ -289,6 +289,14 @@ body.hasbar{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 #news .nwt b{color:#ffd23f}
 #news button{margin:0;padding:8px 12px;font-size:14px;border-radius:9px}
 #news .nwx{background:transparent;color:#fff;padding:6px 8px}
+#linkd>summary{list-style:none;cursor:pointer}
+#linkd>summary::-webkit-details-marker{display:none}
+#linkd>summary::after{content:' ▼';font-size:12px;opacity:.6}
+#linkd[open]>summary::after{content:' ▲'}
+.lstep{display:flex;gap:10px;align-items:flex-start;background:#00000030;border-radius:10px;padding:10px;margin:6px 0;font-size:14px}
+.lstep>button{margin:0;font-size:14px;padding:8px 12px;white-space:nowrap}
+.lnum{flex:none;width:24px;height:24px;border-radius:50%;background:#ffd23f;color:#222;font-weight:900;display:flex;align-items:center;justify-content:center;font-size:13px}
+.lbig{font-size:34px;font-weight:900;letter-spacing:8px;color:#ffd23f;margin-top:6px}
 .goldtag{display:inline-flex;align-items:center;gap:4px;background:#00000040;border:1px solid #ffd23f66;border-radius:999px;padding:4px 12px;font-weight:800;color:#ffd23f}
 .shopcat h4{margin:14px 0 6px;color:#ffd23f;font-size:14px;letter-spacing:1px;text-transform:uppercase}
 .skins{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
@@ -1205,10 +1213,45 @@ function shopHTML() {
       <div class="small" style="margin-top:4px">More CPUs at the table = more gold.</div></div>
     <div class="shopcat"><h4>Free</h4><div class="skins">${tile('classic', 'Classic', 0)}${tile('maine', 'Maine Black Bears', 0)}</div></div>
     ${SKIN_CATS.map(([cat, list]) => `<div class="shopcat"><h4>${cat}</h4><div class="skins">${list.map(([id, n, pr]) => tile(id, n, pr)).join('')}</div></div>`).join('')}
-    <details style="margin-top:12px"><summary class="small">New phone? Restore your gold</summary>
-      <p class="small">Your code: <b style="user-select:all">${me}</b> (save it). On a new phone, enter it here:</p>
-      <div class="row"><input id="restore" placeholder="Restore code" style="flex:1;min-width:120px;margin:0"><button class="sec" onclick="restoreCode()" style="margin:0">Restore</button></div>
-    </details></details>`;
+    <p class="small" style="margin:12px 0 0">📱 Want your gold and skins on your iPad too? Use <b>Play on another device</b> on the home screen.</p>
+    </details>`;
+}
+// ---------- Same account on another device (5-digit code, good for 10 minutes) ----------
+const LINK_MS = 10 * 60 * 1000;
+function linkHTML() {
+  return `<details id="linkd"><summary><h3 style="display:inline;margin:0">📱 Play on another device</h3></summary>
+    <p class="small" style="margin:8px 0">Keep your gold and card skins on your iPad or a new phone.</p>
+    <div class="lstep"><span class="lnum">1</span><div style="flex:1">On the device that has your gold, tap <b>Get a code</b>.<div id="lcode"></div></div><button onclick="makeLinkCode()">Get a code</button></div>
+    <div class="lstep"><span class="lnum">2</span><div style="flex:1">On the other device, type the code:
+      <div class="row" style="margin-top:6px"><input id="lin" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="12345" style="flex:1;min-width:100px;margin:0;letter-spacing:4px;text-align:center;font-weight:800"><button onclick="useLinkCode()" style="margin:0">Link</button></div></div></div>
+  </details>`;
+}
+function makeLinkCode(tries = 0) {
+  const name = localStorage.getItem('killer_name') || ($('#name') && $('#name').value.trim()) || 'Player';
+  const code = String(10000 + Math.floor(Math.random() * 90000));
+  db.ref('rooms/_links/' + code).transaction(cur => (cur && Date.now() - (cur.t || 0) < LINK_MS) ? undefined : { id: me, name, t: Date.now() }, (e, ok) => {
+    if (e) return flash('Couldn\'t make a code, try again');
+    if (!ok) return tries < 5 ? makeLinkCode(tries + 1) : flash('Try again');
+    const box = $('#lcode'); if (box) box.innerHTML = `<div class="lbig">${code}</div><div class="small">Good for 10 minutes</div>`;
+  });
+}
+function useLinkCode() {
+  const code = ($('#lin').value || '').replace(/\D/g, '');
+  if (code.length !== 5) return flash('Enter the 5-digit code');
+  db.ref('rooms/_links/' + code).get().then(s => {
+    const L = s.val();
+    if (!L || Date.now() - (L.t || 0) > LINK_MS) return flash('That code didn\'t work or expired. Get a new one.');
+    if (L.id === me) return flash('This device is already on that account ✅');
+    const lose = profile.gold > 0 ? ` This device's ${profile.gold} gold stays on its old account.` : '';
+    confirmBox(`Link this device to ${L.name}? You'll have their gold and card skins here.${lose}`, () => {
+      db.ref('rooms/_links/' + code).remove();
+      if (room && room.game && arr(room.game.order).includes(me)) act(g => { removeFromGame(g, me, 'left the game'); });
+      if (roomCode) { db.ref('rooms/' + roomCode + '/players/' + me).remove(); leaveRoom(); }
+      try { onRef().remove(); } catch (e) {}
+      localStorage.setItem('killer_me', L.id); localStorage.setItem('killer_name', L.name);
+      setTimeout(() => location.reload(), 300);
+    }, 'Link');
+  });
 }
 function restoreCode() {
   const c = ($('#restore').value || '').trim();
@@ -1297,6 +1340,7 @@ function renderHome() {
       <div id="onl">${onlineHTML()}</div>
     </div>
     <div class="panel" id="shop">${shopHTML()}</div>
+    <div class="panel" id="link">${linkHTML()}</div>
     <div class="panel hof">
       <h3>🏆 Hall of Fame</h3>
       <p class="small" style="margin:0 0 8px">Times someone won 3 in a row in games with 4+ real people. A 6-win streak counts twice.</p>
