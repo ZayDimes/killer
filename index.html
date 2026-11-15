@@ -326,7 +326,11 @@ body.tabland .up{margin-top:6px}
 body.tabland .mainbtns{left:55%;right:0;max-width:none;margin:0;padding:8px 14px calc(8px + env(safe-area-inset-bottom))}
 body.tabland .mainbtns button{font-size:24px;padding:16px 8px}
 body.tabland.hasbar{padding-bottom:96px}
-body.tabland #chat,body.tabland #rules{display:none!important}
+body.tabland #rules{display:none!important}
+/* chat sits under the table on the left, always on screen */
+body.tabland #chat{position:fixed;left:max(10px,env(safe-area-inset-left));width:calc(55% - 30px);bottom:calc(10px + env(safe-area-inset-bottom));padding:0;margin:0;max-width:none;z-index:15}
+body.tabland #chatbox{background:#00000055;box-shadow:0 4px 14px #0006}
+body.tabland #chatlog{height:var(--chath,120px);max-height:none;min-height:40px}
 @media (orientation:landscape) and (max-height:520px){
   #app{max-width:1000px}
   .glay{display:grid;grid-template-columns:57fr 43fr;gap:16px;align-items:start}
@@ -1673,6 +1677,12 @@ function renderGame(g) {
     </div></div>
     ${chair}${over}${g.paused && g.phase !== 'over' ? `<div class="overlay"><div class="box"><h2>⏸ Paused</h2><p class="small">The CPUs are waiting on you.</p><button class="full" onclick="togglePause()">▶ Resume</button></div></div>` : ''}`;
 
+  // iPad sideways: give the chat all the room under the table
+  if (TAB) { const rg = $('.ring'), ch = $('#chat');
+    if (rg && ch) { let low = rg.getBoundingClientRect().bottom; rg.querySelectorAll('.chairx,.seat').forEach(e => low = Math.max(low, e.getBoundingClientRect().bottom));
+      const free = (window.innerHeight || 800) - low - 20 - 92;   // leave a little gap under the bottom chair, minus the chat box's header and input
+      document.documentElement.style.setProperty('--chath', Math.max(50, Math.min(360, free)) + 'px');
+      const log = $('#chatlog'); if (log) log.scrollTop = log.scrollHeight; } }
   // Keep the cards just played in the exact middle of the table, and never let anything touch a player's box
   { const m = $('.mid');
     if (m) {
