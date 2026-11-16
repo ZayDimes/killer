@@ -421,7 +421,23 @@ body.big .mainbtns{max-width:1000px}
 <div id="modal"><div class="box"><h2 id="modaltxt"></h2><div class="btns"><button id="modalno" class="sec" onclick="closeModal()">Cancel</button><button id="modalyes" class="danger">Yes</button></div></div></div>
 <div id="fx"></div>
 <div id="flash"></div>
-<script>window.onerror=function(m,s,l){document.body.insertAdjacentHTML('beforeend','<p style="color:#fff;padding:16px;font-size:18px">Error: '+m+' (line '+l+')</p>')}</script>
+<script>
+// Errors never get drawn onto the page. "Script error." (line 0) comes from Firebase's own script and is harmless, so it's ignored;
+// anything else shows one small note that hides itself, and the game keeps going.
+window.__errs = [];
+window.onerror = function (m, s, l) {
+  if (!m || /^Script error\.?$/i.test(String(m)) || !l) return true;
+  try { window.__errs.push(m + ' (line ' + l + ')'); if (window.__errs.length > 20) window.__errs.shift();
+    let n = document.getElementById('errnote');
+    if (!n) { n = document.createElement('div'); n.id = 'errnote'; n.style.cssText = 'position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:99;background:#000c;color:#fff;font:13px -apple-system,sans-serif;padding:6px 12px;border-radius:10px;pointer-events:none'; document.body.appendChild(n); }
+    n.textContent = 'Hiccup fixed itself. Keep playing.'; clearTimeout(window.__errT); window.__errT = setTimeout(() => n.remove(), 2500);
+  } catch (e) {}
+  return true;
+};
+window.addEventListener('unhandledrejection', e => { try { e.preventDefault(); } catch (x) {} });
+// Wraps every database callback so one bad update can never stop the chat or the game
+window.guard = (fn, name) => function () { try { return fn.apply(this, arguments); } catch (e) { try { window.__errs.push((name || 'cb') + ': ' + e.message); console.error(e); } catch (x) {} } };
+</script>
 
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -1095,7 +1111,7 @@ function updatePresence(force) {
 setInterval(() => updatePresence(true), 30000);             // heartbeat
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { reconnect(); updatePresence(true); } });   // iPhone drops the connection in the background
 let connected = null;
-try { db.ref('.info/connected').on('value', s => { connected = s.val(); const c = $('#conn'); if (c) c.textContent = connected === false ? '⚠️ Reconnecting…' : ''; }); } catch (e) {}
+try { db.ref('.info/connected').on('value', guard(s => { connected = s.val(); const c = $('#conn'); if (c) c.textContent = connected === false ? '⚠️ Reconnecting…' : ''; }, 'db.ref')); } catch (e) {}
 function paintOnline() {
   const g = $('#gonl');
   if (g) { const h = gameOnlineHTML(); if (g.innerHTML !== h) g.innerHTML = h; }   // in a game: only shows when someone's free
@@ -1151,8 +1167,8 @@ function invite(id) {
   setTimeout(paintOnline, 30500);                            // bring the button back
 }
 function listenOnline() {
-  db.ref('rooms/_online').on('value', s => { online = s.val() || {}; paintOnline(); });
-  db.ref('rooms/_invites/' + me).on('value', s => {
+  db.ref('rooms/_online').on('value', guard(s => { online = s.val() || {}; paintOnline(); }, 'db.ref'));
+  db.ref('rooms/_invites/' + me).on('value', guard(s => {
     const inv = s.val();
     if (!inv || Date.now() - (inv.t || 0) > 120000 || inv.room === roomCode) return;
     db.ref('rooms/_invites/' + me).remove();
@@ -1163,7 +1179,7 @@ function listenOnline() {
       if (roomCode) { db.ref('rooms/' + roomCode + '/players/' + me).remove(); leaveRoom(); }
       joinCode(name, inv.room);
     }, 'Join', 'No thanks');
-  });
+  }, 'db.ref'));
 }
 function saveName(v) { v = v.trim(); if (v) { localStorage.setItem('killer_name', v); updatePresence(); } }
 
@@ -1183,7 +1199,7 @@ const profRef = () => db.ref('rooms/_profiles/' + me);
 const skinOf = id => { if (id === me) return profile.skin; const p = room && room.players && room.players[id]; return (p && p.skin) || 'classic'; };
 const skinCls = sk => sk && SKINS[sk] ? 'sk sk-' + sk : '';
 function listenProfile() {
-  profRef().on('value', s => {
+  profRef().on('value', guard(s => {
     const v = s.val() || {};
     profile = { gold: v.gold || 0, owned: v.owned || {}, all: !!v.all, skin: v.skin && SKINS[v.skin] ? v.skin : 'classic', lastAward: v.lastAward };
     paintGold();
@@ -1196,7 +1212,7 @@ function listenProfile() {
     }
     if (roomCode && room && room.players && room.players[me] && (room.players[me].skin || 'classic') !== profile.skin)
       db.ref('rooms/' + roomCode + '/players/' + me + '/skin').set(profile.skin);   // so everyone sees your skin
-  });
+  }, 'profRef'));
 }
 function showNews() {
   if ($('#news')) return;
@@ -1313,7 +1329,7 @@ function useLinkCode() {
 // ---------- One-time code: unlocks every skin for one player, then the box disappears for everyone ----------
 const UNLOCK_HASH = '6cd77e8ab966204cb192637787401ef889585454a1160c8d288ebe91d178fe7e';
 let codeClaimed = true;                                     // hidden until we know nobody has used it
-try { db.ref('rooms/_unlock').on('value', s => { codeClaimed = !!s.val(); if ($('#shop')) $('#shop').innerHTML = shopHTML(); }); } catch (e) {}
+try { db.ref('rooms/_unlock').on('value', guard(s => { codeClaimed = !!s.val(); if ($('#shop')) $('#shop').innerHTML = shopHTML(); }, 'db.ref')); } catch (e) {}
 async function redeemCode() {
   const c = ($('#ucode').value || '').trim().toUpperCase();
   if (!c) return;
@@ -1450,14 +1466,14 @@ function startChat() {
   $('#chat').style.display = 'block'; $('#chatlog').innerHTML = '';
   chatRef = db.ref('rooms/' + roomCode + '/chat').limitToLast(50);
   chatStart = Date.now() - 2000;
-  chatRef.on('child_added', s => {
+  chatRef.on('child_added', guard(s => {
     const m = s.val(); if (!m) return;
     if (m.by !== me && (m.t || 0) > chatStart) { lastChat = { name: m.name, text: m.text, at: Date.now() }; paintChatTop(); clearTimeout(paintChatTop.t); paintChatTop.t = setTimeout(paintChatTop, CHAT_MS + 50); }
     const log = $('#chatlog');
     const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
     log.insertAdjacentHTML('beforeend', `<div class="m ${m.by === me ? 'mine' : ''}"><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`);
     if (atBottom || m.by === me) log.scrollTop = log.scrollHeight;
-  });
+  }, 'chatRef.on'));
 }
 function stopChat() {
   if (chatRef) chatRef.off(); chatRef = null;
@@ -1474,12 +1490,12 @@ function sendChat() {
 function listen() {
   roomRef().off();
   startChat();
-  roomRef().on('value', s => {
+  roomRef().on('value', guard(s => {
     room = s.val();
     if (!room) { flash('Room closed'); leaveRoom(); return; }
     if (!(room.players && room.players[me])) { leaveRoom(); flash('You were removed from the room'); return; }
     render();
-  });
+  }, 'roomRef'));
 }
 
 function render() {
