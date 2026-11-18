@@ -1243,7 +1243,14 @@ function goldFor(g, id) {
     out.push(['Beat ' + bots.length + ' CPU' + (bots.length > 1 ? 's' : ''), lv]);
   }
   const st = g.streaks[id] || {};
-  if (won && st.w && st.w % 3 === 0) out.push([st.w + ' in a row bonus', 20]);
+  if (won && st.w && st.w % 3 === 0) {
+    out.push([st.w + ' in a row bonus', 20]);
+    if (!friends) {                                              // CPU streak bonus: every CPU at the table adds to it (Easy 5, Medium 10, Hard 20)
+      const bots = g.order.filter(x => g.bots[x]);
+      const cb = bots.reduce((a, x) => a + (({ easy: 5, medium: 10 })[g.bots[x]] || 20), 0);
+      out.push(['🤖 CPU streak bonus ×' + bots.length, cb]);
+    }
+  }
   return out;
 }
 function awardGold(g) {
@@ -1282,6 +1289,7 @@ function shopHTML() {
       <div class="er"><span>👥 Play with friends</span><b><i class="brick"></i> 10</b></div>
       <div class="er"><span>🏆 Beat your friends</span><b><i class="brick"></i> 35</b></div>
       <div class="er"><span>🔥 Every 3 wins in a row</span><b>+<i class="brick"></i> 20</b></div>
+      <div class="er"><span>🤖🔥 3 in a row vs CPUs: bonus <b>per CPU</b><br><span class="small">Easy 5 · Medium 10 · Hard 20 each</span></span><b>+<i class="brick"></i> up to 120</b></div>
       <div class="small" style="margin-top:4px">More CPUs at the table = more gold.</div></div>
     <div class="shopcat"><h4>Free</h4><div class="skins">${tile('classic', 'Classic', 0)}${tile('maine', 'Maine Black Bears', 0)}</div></div>
     ${SKIN_CATS.map(([cat, list]) => `<div class="shopcat"><h4>${cat}</h4><div class="skins">${list.map(([id, n, pr]) => tile(id, n, pr)).join('')}</div></div>`).join('')}
