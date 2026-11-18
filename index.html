@@ -1695,6 +1695,7 @@ function renderGame(g) {
       <button class="sec" onclick="toggleSound()">Sound: ${soundOn ? 'ON 🔊' : 'OFF 🔇'}</button>
       <button class="sec" onclick="toggleChime()">Turn ding/flash: ${chimeOn ? 'ON 🔔' : 'OFF 🔕'}</button>
       <button class="sec" onclick="testSound(true)">🔊 Test sound</button>
+      <button class="sec" onclick="toggleMix()">Keep YouTube/music playing: ${mixOn ? 'ON 🎵' : 'OFF'}</button>
       <button class="sec" onclick="cycleBig()">iPad view: ${bigMode === 'auto' ? 'Auto' : bigMode === 'on' ? 'ON 📱' : 'OFF'}</button>
     </div>` : ''}
     <p class="small" style="text-align:center">Room ${esc(roomCode)} · Game ${g.gameNo || 1} · <a href="#" onclick="copyCode();return false" style="color:#ffd23f">📋 Copy code</a></p>
@@ -1872,9 +1873,13 @@ function resetAudio() {                                       // iPhone kills au
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) resetAudio(); });
 window.addEventListener('pageshow', resetAudio);
+let mixOn = localStorage.getItem('killer_mix') !== 'off';
+function toggleMix() { mixOn = !mixOn; try { localStorage.setItem('killer_mix', mixOn ? 'on' : 'off'); } catch (e) {} resetAudio(); unlockAudio(); render();
+  flash(mixOn ? 'Game sounds now play over YouTube/music' : 'Game takes over audio (sounds even on silent)'); }
 function unlockAudio() {
   try {
-    if (navigator.audioSession) navigator.audioSession.type = 'playback';   // play even with the ring switch on silent
+    // Mix mode (default): game sounds play on top of YouTube/music instead of pausing it. Off = game takes over audio (works on silent).
+    if (navigator.audioSession) navigator.audioSession.type = mixOn ? 'ambient' : 'playback';
     if (actx && (actx.state === 'interrupted' || actx.state === 'closed')) resetAudio();
     if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
     if (!actx) return;
@@ -1883,8 +1888,10 @@ function unlockAudio() {
       unlocked = true;
       const src = actx.createBufferSource(); src.buffer = actx.createBuffer(1, 1, 22050);
       src.connect(actx.destination); src.start(0);                 // wakes up Web Audio on iPhone
-      const a = new Audio(silentWav()); a.setAttribute('playsinline', ''); a.play().catch(() => {});   // older iPhones: same trick
-      if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }   // lets the "Nice" voice talk later
+      if (!mixOn) {                                               // these two grab the phone's audio, which pauses YouTube, so only in non-mix mode
+        const a = new Audio(silentWav()); a.setAttribute('playsinline', ''); a.play().catch(() => {});   // older iPhones: same trick
+        if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }   // lets the "Nice" voice talk later
+      }
     }
   } catch (e) {}
 }
@@ -1994,6 +2001,8 @@ function demonLaugh(at) {
   });
 }
 const SOUNDS = {
+  nice:      () => { tone(196, 0, .22, 'triangle', .3); tone(147, .16, .45, 'triangle', .3); },
+  nicebig:   () => { tone(220, 0, .2, 'triangle', .3); tone(196, .15, .2, 'triangle', .3); tone(131, .3, .6, 'triangle', .32); },
   turn:      () => { tone(880, 0, .22, 'sine', .3); tone(1320, .11, .35, 'sine', .25); },
   kkk:       () => tone(330, 0, .7, 'triangle', .25, 220),
   devil:     () => organSting(0),
@@ -2028,8 +2037,8 @@ function say(text, rate, pitch) {
   } catch (e) {}
 }
 function sfx(n) {
-  if (soundOn && n === 'nice') return say('Nice', .7, 0);   // deepest male voice
-  if (soundOn && n === 'nicebig') return say('Nice!', .55, 0);       // bigger play: slower, cooler "niiice"
+  if (soundOn && n === 'nice' && !mixOn) return say('Nice', .7, 0);   // deepest male voice (voice would pause YouTube, so mix mode uses the chime)
+  if (soundOn && n === 'nicebig' && !mixOn) return say('Nice!', .55, 0);       // bigger play: slower, cooler "niiice"
   if (!soundOn || !actx || !SOUNDS[n]) return;
   try {
     if (actx.state === 'closed') { resetAudio(); return; }   // next tap brings it back
