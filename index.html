@@ -936,7 +936,55 @@ function allPlays(hand) {
   return out;
 }
 
-function botChoose(g, id) {
+// ---------- CPU brain ----------
+// Splits a hand into the fewest, cleanest plays (killers, suited runs, runs, triples, pairs, singles), the way a person sorts their cards.
+function planHand(hand) {
+  const orders = [['killer', 'srun', 'run', 'triple', 'pair'], ['killer', 'triple', 'pair', 'srun', 'run'], ['killer', 'srun', 'triple', 'pair', 'run'],
+                  ['killer', 'run', 'triple', 'pair'], ['killer', 'pair', 'srun', 'run', 'triple'], ['srun', 'run', 'killer', 'triple', 'pair']];
+  const longest = (ranks) => {                                  // longest stretch of consecutive ranks (3+), no wrap
+    let best = null, st = null;
+    for (let r = 0; r <= 13; r++) {
+      if (r < 13 && ranks.has(r)) { if (st === null) st = r; }
+      else if (st !== null) { const L = r - st; if (L >= 3 && (!best || L > best[1])) best = [st, L]; st = null; }
+    }
+    return best;
+  };
+  let bestPlan = null, bestScore = 1e9;
+  for (const order of orders) {
+    let rest = [...hand].sort(byVal); const combos = [];
+    const take = cs => { combos.push(cs); rest = rest.filter(c => !cs.includes(c)); };
+    for (const kind of order) {
+      for (let guard = 0; guard < 8; guard++) {
+        const by = {}; rest.forEach(c => (by[rk(c)] = by[rk(c)] || []).push(c));
+        let pick = null;
+        if (kind === 'killer') { const r = Object.keys(by).find(r => by[r].length >= 4); if (r) pick = by[r].slice(0, 4); }
+        else if (kind === 'triple') { const r = Object.keys(by).find(r => by[r].length === 3); if (r) pick = by[r]; }
+        else if (kind === 'pair') { const r = Object.keys(by).find(r => by[r].length === 2 || by[r].length === 3); if (r) pick = by[r].slice(0, 2); }
+        else if (kind === 'srun') {
+          let b = null;
+          for (let x = 0; x < 4; x++) { const L = longest(new Set(rest.filter(c => su(c) === x).map(rk))); if (L && (!b || L[1] > b[1][1])) b = [x, L]; }
+          if (b) { const [x, [st, L]] = b; pick = Array.from({ length: L }, (_, i) => rest.find(c => su(c) === x && rk(c) === st + i)); }
+        } else if (kind === 'run') {
+          const L = longest(new Set(rest.map(rk)));
+          if (L) { const [st, n] = L; pick = Array.from({ length: n }, (_, i) => by[st + i].reduce((a, c) => (by[st + i].length > 1 ? val(c) < val(a) : true) ? c : a)); }   // lowest card of each rank: keeps pairs' high card
+        }
+        if (!pick) break;
+        take(pick);
+      }
+    }
+    rest.forEach(c => combos.push([c]));
+    // fewer plays is better; low loose singles are the hardest to get rid of
+    const score = combos.reduce((a, cs) => a + 1 + (cs.length === 1 && rk(cs[0]) < 7 ? .6 : 0) + (cs.length === 1 && rk(cs[0]) < 3 ? .3 : 0), 0);
+    if (score < bestScore) { bestScore = score; bestPlan = combos; }
+  }
+  return bestPlan;
+}
+const comboKey = cs => [...cs].sort((a, b) => a - b).join(',');
+// "Power" plays get saved for the end: killers, bombs, suited runs, long runs, anything with a 2, and triple aces
+const isPower = p => p.k === 'killer' || p.k === 'bomb' || (p.k === 'run' && (p.suited || p.len >= 6)) || p.c.some(c => rk(c) === TWO) || (p.k === 'triple' && rk(p.c[0]) === 11);
+
+// HARD (and MEDIUM with counting=false): plans the hand, baits with low stuff, saves the big plays, closes it out
+function botBrain(g, id, counting) {
   const hand = g.hands[id], t = g.table;
   const others = active(g).filter(x => x !== id);
   const counts = others.map(x => g.hands[x].length);
@@ -949,64 +997,86 @@ function botChoose(g, id) {
   });
   if (!legal.length) return null;
   const win = legal.find(x => x.cs.length === hand.length);
-  if (win) return win.cs;                                     // can go out? do it
+  if (win) return win.cs;
 
-  // Card counting: which cards are still out there (not WHO has them, just what's left)
+  // Can anything still out there beat this? Hard counts every card still in play; Medium guesses from rank.
   const unseen = others.flatMap(x => g.hands[x]);
-  const threats = allPlays(unseen).map(classify).filter(q => q && q.c.length <= maxOpp);
-  const bossMemo = new Map();
-  const boss = x => {                                          // can anything still out beat this?
-    if (!bossMemo.has(x)) {
-      const lk = g.locked || (x.p.k === 'run' && x.p.suited);
-      bossMemo.set(x, !threats.some(q => canPlay(q, x.p, lk)));
-    }
-    return bossMemo.get(x);
+  const threats = counting ? allPlays(unseen).map(classify).filter(q => q && q.c.length <= maxOpp) : null;
+  const memo = new Map();
+  const boss = x => {
+    if (memo.has(x)) return memo.get(x);
+    let v;
+    if (counting) { const lk = g.locked || (x.p.k === 'run' && x.p.suited); v = !threats.some(q => canPlay(q, x.p, lk)); }
+    else v = x.p.k === 'killer' || rk(topCard(x.p)) === TWO || (x.p.k === 'run' && x.p.suited && x.p.len >= 5);
+    memo.set(x, v); return v;
   };
-  const cnt = {}; hand.forEach(c => cnt[rk(c)] = (cnt[rk(c)] || 0) + 1);
-  const breaks = x => {                                        // splitting up pairs/triples hurts later
-    const used = {}; x.cs.forEach(c => used[rk(c)] = (used[rk(c)] || 0) + 1);
-    return Object.keys(used).reduce((n, r) => n + (cnt[r] >= 2 && used[r] < cnt[r] ? 1 : 0), 0);
-  };
-  const restCombo = x => { const rest = hand.filter(c => !x.cs.includes(c)); return rest.length ? classify(rest) : null; };
-  const power = x => x.p.k === 'killer' || x.p.k === 'bomb' || x.cs.some(c => rk(c) === TWO);
 
-  // Two moves from winning: play an unbeatable one now, then dump the rest
-  const finisher = legal.find(x => restCombo(x) && boss(x));
-  if (finisher) return finisher.cs;
+  const plan = planHand(hand), keys = new Set(plan.map(comboKey));
+  const moves = plan.length;
+  const inPlan = x => keys.has(comboKey(x.cs));
+  const breaks = x => plan.filter(cs => cs.some(c => x.cs.includes(c)) && comboKey(cs) !== comboKey(x.cs)).length;
+  const after = x => planHand(hand.filter(c => !x.cs.includes(c))).length;
+  const danger = minOpp <= 2;
+  const late = moves <= 3 || minOpp <= 4;
 
-  const danger = minOpp <= 2;                                  // someone is about to go out
-  const late = minOpp <= 4 || hand.length <= 5;
-  let pool = (late || danger) ? legal : legal.filter(x => !power(x));
-  if (!pool.length) {
-    if (t && Math.random() < 0.6) return null;                 // early on, save the big stuff
-    pool = legal;
+  // Closing out: an unbeatable play that leaves one clean play (or two unbeatable ones) wins the game
+  for (const x of legal) {
+    if (!boss(x)) continue;
+    const rest = hand.filter(c => !x.cs.includes(c)), rp = planHand(rest);
+    if (rp.length <= 1) return x.cs;
+    if (rp.length === 2 && rp.some(cs => { const q = classify(cs); return q && boss({ cs, p: q }); })) return x.cs;
   }
 
-  const score = x => {
-    const top = val(topCard(x.p)), len = x.cs.length;
-    let s;
-    if (t) {                                                   // ---- following ----
-      if (danger) s = boss(x) ? -1000 + top : -top;            // stop them: take control or play your strongest
-      else s = top + (power(x) ? 60 : 0) + breaks(x) * 14;     // otherwise beat it as cheaply as possible
-    } else {                                                   // ---- leading ----
-      const risky = !boss(x) && counts.some(n => n <= 2 && len <= n);   // they could follow and go out
-      if (risky) s = 400 - top * 3;                            // if forced, lead the highest of the risky stuff
-      else {
-        s = top * 2 - len * 9 + (power(x) ? 120 : 0) + breaks(x) * 16;
-        if (len > maxOpp) s -= 150;                            // nobody has enough cards to follow
-        if (late && boss(x)) s -= 40;                          // keep control near the end
-      }
-    }
-    if (restCombo(x)) s -= 80;                                 // leaves a hand you can dump in one go
-    return s;
-  };
-  pool.sort((a, b) => score(a) - score(b));
-  // Near the end, don't waste a big play following when passing keeps you safe
-  return pool[0].cs;
-}
+  const power = x => isPower(x.p);
+  let s;
+  if (!t) {
+    // ---- leading ----
+    const fromPlan = legal.filter(inPlan);
+    const cand = fromPlan.length ? fromPlan : legal;
+    const bosses = plan.filter(cs => { const q = classify(cs); return q && boss({ cs, p: q }); }).length;
+    const goTime = bosses >= moves - 1;                      // enough unbeatable plays to run the table
+    const score = x => {
+      const top = val(topCard(x.p)), len = x.cs.length;
+      let v = top * 2 - len * 7;                             // low cards first, and dump more cards at once
+      if (power(x)) v += goTime ? -200 : 160;                // save the big stuff for the end, unless it's time to cash in
+      if (goTime && boss(x)) v -= 120;
+      if (!inPlan(x)) v += 40 + breaks(x) * 25;
+      if (x.p.k === 'run' && !x.p.suited && !power(x)) v -= 10;   // a plain low run is great bait
+      const risky = !boss(x) && counts.some(n => n <= 2 && len <= n);
+      if (risky) v += 300 - top * 2;                         // don't hand someone their last play; if forced, lead high
+      if (len > maxOpp && !power(x)) v -= 25;                // nobody can follow this
+      return v;
+    };
+    cand.sort((a, b) => score(a) - score(b));
+    return cand[0].cs;
+  }
 
-// MEDIUM (and EASY with sloppy=true): the simpler CPU
+  // ---- following ----
+  const score = x => {
+    const top = val(topCard(x.p));
+    if (danger) return boss(x) ? -1000 + top : 200 - top;    // someone's about to go out: take control or play strongest
+    let v = top;
+    if (!inPlan(x)) v += 30 + breaks(x) * 30;                // don't split up a pair/run you're saving
+    if (power(x)) v += late ? 20 : 90;
+    return v;
+  };
+  legal.sort((a, b) => score(a) - score(b));
+  const best = legal[0];
+  const headsUp = others.length === 1;                      // 1-on-1: passing just hands them the lead, so hold back much less
+  if (!danger && !(headsUp && minOpp <= moves + 2)) {
+    // Hold back like a person would: early on, don't burn a power play or break your hand just to win a small round
+    if (power(best) && !late) return null;
+    if (!headsUp && !inPlan(best) && breaks(best) >= 1 && moves > 4 && rk(topCard(best.p)) >= 9) return null;
+    if (!headsUp && !inPlan(best) && breaks(best) >= 2 && !late) return null;
+  }
+  return best.cs;
+}
+function botChoose(g, id) { return botBrain(g, id, true); }
+
+// MEDIUM (smart, no card counting) and EASY (sloppy=true)
 function botChooseSimple(g, id, sloppy) {
+  if (!sloppy) return botBrain(g, id, false);
+
   const hand = g.hands[id], t = g.table;
   const opp = Math.min(...active(g).filter(x => x !== id).map(x => g.hands[x].length));
   const legal = allPlays(hand).map(cs => ({ cs, p: classify(cs) })).filter(({ cs, p }) => {
