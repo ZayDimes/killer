@@ -407,7 +407,7 @@ body.big .mainbtns{max-width:1000px}
   <h4>Extras</h4>
   <ul>
     <li>3 wins in a row = Hall of Fame (4+ real people; CPU wins don't count).</li>
-    <li>🤖 Host can add up to 6 CPUs (Easy, Medium, Hard). They leave once 3+ real people are playing.</li>
+    <li>🤖 Host can add up to 6 CPUs (Easy, Medium, Hard, Ultra). They leave once 3+ real people are playing.</li>
   </ul>
 </details></div>
 <div id="chat" class="screen"><div id="chatbox">
@@ -774,7 +774,39 @@ function doPlay(g, who, cards) {
     }
     g.turn = nextActive(g, me);
 }
-const hallAfter = g => { if (g && g.phase === 'over' && g.endInfo && g.endInfo.hall) addToHall(g.endInfo.hall); };   // only the device that ended the game writes it
+// Ultra talks trash in the chat after it wins a game with real people at the table
+const TAUNTS = [
+  "GG. Actually no, not GG. That was embarrassing for you, {L}.",
+  "Did you guys even shuffle? Because it felt like you were playing with your eyes closed.",
+  "I barely tried. Honestly I was half asleep for that one.",
+  "{L}, you had the game the whole time. You just didn't. Weird.",
+  "That wasn't luck. You just don't know how to play this game. It's okay.",
+  "Hold that L, {L}. Hold it with both hands.",
+  "I'm not even good. You're just that bad. Let that sink in.",
+  "You thought you had me for like two seconds. Cute.",
+  "Funny, I remember you saying you were good at this.",
+  "Damn. Run it back so I can do it again.",
+  "Nobody was ahead of me. You only thought you were. Check the replay in your head.",
+  "Holy shit, {L}. Was that a strategy or a cry for help?",
+  "Sit down, {L}. Your cards were fine. It's you.",
+  "I didn't even need the killer. I just wanted to see your face.",
+  "You lost to a robot. Tell your friends. Actually, don't.",
+  "Bro played his 2 like it was a 3. Respectfully, what the hell.",
+  "That's not a losing streak, {L}. That's a lifestyle.",
+  "I was going easy on you. That was me going easy.",
+  "Pretty sure you passed on purpose. No? Then that's worse.",
+  "Same time tomorrow? I'll bring tissues for {L}."
+];
+function ultraTaunt(g) {
+  if (!g || g.phase !== 'over') return;
+  const w = g.finished[0];
+  if (!w || g.bots[w] !== 'ultra' || !g.order.some(x => !g.bots[x])) return;
+  const humans = g.order.filter(x => !g.bots[x]);
+  const L = g.names[g.loser && !g.bots[g.loser] ? g.loser : humans[Math.floor(Math.random() * humans.length)]] || 'buddy';
+  const line = TAUNTS[Math.floor(Math.random() * TAUNTS.length)].replace(/\{L\}/g, L);
+  setTimeout(() => db.ref('rooms/' + roomCode + '/chat').push({ by: w, name: g.names[w], text: line, t: Date.now() }), 1200);
+}
+const hallAfter = g => { ultraTaunt(g); if (g && g.phase === 'over' && g.endInfo && g.endInfo.hall) addToHall(g.endInfo.hall); };   // only the device that ended the game writes it
 function playSel() {
   const cards = [...sel];
   act(g => doPlay(g, me, cards), hallAfter);
@@ -1000,7 +1032,7 @@ function botBrain(g, id, counting) {
   if (win) return win.cs;
 
   // Can anything still out there beat this? Hard counts every card still in play; Medium guesses from rank.
-  const ultra = counting === 'ultra';                      // Ultra sees every hand, so it knows exactly who can beat what
+  const ultra = counting === 'ultra';                      // Ultra reads the table perfectly
   const unseen = others.flatMap(x => g.hands[x]);
   const threats = counting && !ultra ? allPlays(unseen).map(classify).filter(q => q && q.c.length <= maxOpp) : null;
   const oppPlays = ultra ? others.map(o => ({ n: g.hands[o].length, plays: allPlays(g.hands[o]).map(classify).filter(Boolean) })) : null;
@@ -1086,10 +1118,11 @@ function botBrain(g, id, counting) {
 }
 function botChoose(g, id) { return botBrain(g, id, true); }
 
-// ULTRA: sees every hand, then plays each option out to the end of the game in its head and picks the one that finishes best
+// ULTRA: plays each option out to the end of the game in its head and picks the one that finishes best
+window.UCFG = window.UCFG || { low: 9, high: 4, oppHard: true, budget: 1800 };   // tuned over 1,500 simulated games
 function botUltra(g, id) {
   const base = botBrain(g, id, 'ultra');
-  const t0 = Date.now(), BUDGET = 1600;
+  const t0 = Date.now(), BUDGET = UCFG.budget || 1600;
   const hand = g.hands[id];
   const legal = allPlays(hand).map(cs => ({ cs, p: classify(cs) })).filter(({ cs, p }) => p && (!g.firstLead || cs.some(c => val(c) === 0))
     && !( !g.table && p.k === 'bomb' && !(g.prev && arr(g.prev.c).some(x => rk(x) === TWO))) && canPlay(p, g.table, g.locked));
@@ -1098,8 +1131,8 @@ function botUltra(g, id) {
   const add = cs => { const k = cs ? comboKey(cs) : 'pass'; if (!seen.has(k)) { seen.add(k); cands.push(cs); } };
   add(base); if (g.table) add(null);
   const plan = new Set(planHand(hand).map(comboKey));
-  legal.filter(x => plan.has(comboKey(x.cs))).sort((a, b) => val(topCard(a.p)) - val(topCard(b.p))).slice(0, 5).forEach(x => add(x.cs));
-  legal.sort((a, b) => val(topCard(b.p)) - val(topCard(a.p))).slice(0, 2).forEach(x => add(x.cs));
+  legal.filter(x => plan.has(comboKey(x.cs))).sort((a, b) => val(topCard(a.p)) - val(topCard(b.p))).slice(0, UCFG.low).forEach(x => add(x.cs));
+  legal.sort((a, b) => val(topCard(b.p)) - val(topCard(a.p))).slice(0, UCFG.high).forEach(x => add(x.cs));
   if (cands.length === 1) return base;
   const rollout = cs => {
     const s2 = norm(JSON.parse(JSON.stringify(g)));
@@ -1107,7 +1140,7 @@ function botUltra(g, id) {
     if (err) return 1e6;
     for (let k = 0; k < 400 && s2.phase === 'play' && !s2.finished.includes(id); k++) {
       const who = s2.turn; let c = null;
-      try { c = botBrain(s2, who, false); } catch (e) {}
+      try { c = botBrain(s2, who, who === id ? 'ultra' : (UCFG.oppHard ? true : false)); } catch (e) {}
       if (!c && !s2.table) c = [s2.hands[who][0]];
       let e2 = c ? doPlay(s2, who, c) : doPass(s2, who);
       if (e2 && s2.table) e2 = doPass(s2, who);
@@ -1408,7 +1441,7 @@ function shopHTML() {
       <div class="er"><span>🤖 Beat an <b>Easy</b> CPU</span><b><i class="brick"></i> 2 each</b></div>
       <div class="er"><span>🤖 Beat a <b>Medium</b> CPU</span><b><i class="brick"></i> 5 each</b></div>
       <div class="er"><span>🤖 Beat a <b>Hard</b> CPU</span><b><i class="brick"></i> 10 each</b></div>
-      <div class="er"><span>😈 Beat an <b>Ultra</b> CPU <span class="small">(sees your cards)</span></span><b><i class="brick"></i> 25 each</b></div>
+      <div class="er"><span>😈 Beat an <b>Ultra</b> CPU</span><b><i class="brick"></i> 25 each</b></div>
       <div class="er"><span>👥 Play with friends</span><b><i class="brick"></i> 10</b></div>
       <div class="er"><span>🏆 Beat your friends</span><b><i class="brick"></i> 35</b></div>
       <div class="er"><span>🔥 Every 3 wins in a row</span><b>+<i class="brick"></i> 20</b></div>
